@@ -215,25 +215,23 @@ func updateTask(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "json inválido")
 	}
 
-	// Movimiento de Kanban (reordenamiento fino): status_id + position.
+	// Si cambia de columna, aplica el reordenamiento fino (status_id + position).
 	if vStatus, ok := body["status_id"]; ok {
+		statusID := toInt64(vStatus)
+		newPos := 0
 		if vPos, ok2 := body["position"]; ok2 {
-			statusID := toInt64(vStatus)
-			newPos := toInt(vPos)
-			if err := db.MoveTask(int64(id), statusID, newPos); err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-			}
-			t, _ := db.GetTask(int64(id))
-			return c.JSON(t)
+			newPos = toInt(vPos)
+		}
+		if err := db.MoveTask(int64(id), statusID, newPos); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 		}
 	}
 
-	// Mapea claves JSON a columnas de DB permitidas.
+	// Aplica el resto de campos editables en la misma petición.
 	fields := map[string]interface{}{}
 	allowed := map[string]string{
 		"title":       "title",
 		"description": "description",
-		"status_id":   "status_id",
 		"priority":    "priority",
 		"due_date":    "due_date",
 		"position":    "position",
@@ -243,10 +241,13 @@ func updateTask(c *fiber.Ctx) error {
 			fields[col] = v
 		}
 	}
-	t, err := db.UpdateTask(int64(id), fields)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	if len(fields) > 0 {
+		if _, err := db.UpdateTask(int64(id), fields); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
 	}
+
+	t, _ := db.GetTask(int64(id))
 	if t == nil {
 		return fiber.NewError(fiber.StatusNotFound, "tarea no encontrada")
 	}

@@ -23,6 +23,8 @@ function app() {
     renameType: "",
     renameId: null,
     renameName: "",
+    showTaskEditModal: false,
+    editTask: { id: null, title: "", description: "", priority: "none", dueDate: "", statusId: null },
     projName: "",
     boardName: "",
     taskTitle: "",
@@ -260,6 +262,38 @@ function app() {
       this.showBoardModal = false;
       this.showTaskModal = false;
       this.showRenameModal = false;
+      this.showTaskEditModal = false;
+    },
+
+    // ---- Editar tarea ----
+    openTaskEdit(task) {
+      this.editTask = {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        dueDate: task.due_date || "",
+        statusId: task.status_id,
+      };
+      this.showTaskEditModal = true;
+    },
+
+    async saveTaskEdit() {
+      if (!this.editTask.title || !this.editTask.title.trim()) return;
+      const body = {
+        title: this.editTask.title.trim(),
+        description: this.editTask.description,
+        priority: this.editTask.priority,
+        due_date: this.editTask.dueDate ? this.editTask.dueDate : null,
+      };
+      if (this.viewMode !== "master") body.status_id = Number(this.editTask.statusId);
+      await this.api("/tasks/" + this.editTask.id, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      this.showTaskEditModal = false;
+      if (this.viewMode === "master") await this.loadMaster();
+      else await this.selectBoard(this.currentBoardId);
     },
 
     // ---- Master Table ----

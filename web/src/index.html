@@ -201,7 +201,14 @@
                             x-text="t.due_date"
                           ></span>
                           <button
-                            @click="deleteTask(t.id)"
+                            @click.stop="openTaskEdit(t)"
+                            class="text-faint hover:text-ink opacity-0 group-hover:opacity-100 transition"
+                            title="Editar"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            @click.stop="deleteTask(t.id)"
                             class="ml-auto text-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
                             title="Eliminar"
                           >
@@ -270,6 +277,13 @@
                       </select>
                     </td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
+                    <td class="py-2 px-3">
+                      <button
+                        @click="openTaskEdit(t)"
+                        class="text-faint hover:text-ink transition"
+                        title="Editar"
+                      >✎</button>
+                    </td>
                   </tr>
                 </template>
               </tbody>
@@ -347,6 +361,13 @@
                     </td>
                     <td class="py-2 px-3" x-text="t.priority"></td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
+                    <td class="py-2 px-3">
+                      <button
+                        @click="openTaskEdit(t)"
+                        class="text-faint hover:text-ink transition"
+                        title="Editar"
+                      >✎</button>
+                    </td>
                   </tr>
                 </template>
               </tbody>
@@ -438,8 +459,51 @@
               <button @click="showTaskModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
               <button @click="createTask()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Crear</button>
             </div>
+        </div>
+      </div>
+
+      <!-- Modal Editar Tarea -->
+      <div
+        x-show="showTaskEditModal"
+        @click.self="showTaskEditModal=false"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      >
+        <div class="w-96 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+          <div class="font-medium mb-3">Editar tarea</div>
+          <input
+            x-model="editTask.title"
+            @keyup.enter="saveTaskEdit()"
+            placeholder="Título"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent"
+          />
+          <textarea
+            x-model="editTask.description"
+            placeholder="Descripción (opcional)"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent resize-none"
+            rows="3"
+          ></textarea>
+          <div class="flex gap-2 mb-3">
+            <select x-model="editTask.priority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
+              <option value="none">none</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+            <input type="date" x-model="editTask.dueDate" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+          </div>
+          <div class="flex gap-2 mb-3" x-show="currentBoardId">
+            <select x-model="editTask.statusId" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
+              <template x-for="col in board.columns" :key="col.status.id">
+                <option :value="col.status.id" x-text="col.status.name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button @click="showTaskEditModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
+            <button @click="saveTaskEdit()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Guardar</button>
           </div>
         </div>
+      </div>
 
       <!-- Modal Renombrar -->
       <div
@@ -478,6 +542,7 @@
             d.showBoardModal = false;
             d.showTaskModal = false;
             d.showRenameModal = false;
+            d.showTaskEditModal = false;
           }
         }
       });
