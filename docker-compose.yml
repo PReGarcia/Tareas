@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    image: task-manager:latest
+    container_name: task-manager
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADDR: ":8080"
+      DATABASE_PATH: "/data/tasks.db"
+    volumes:
+      - ./data:/data
+    # Límite holgado: el consumo real ronda 30–45 MB RAM.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    mem_limit: 128m

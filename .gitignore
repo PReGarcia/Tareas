@@ -1,0 +1,7 @@
+# Datos y builds generados
+data/
+web/node_modules/
+web/dist/
+*.db
+server
+out/

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Manager</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="preconnect" href="/fonts" />
+  </head>
+  <body class="bg-base text-ink font-sans antialiased">
+    <div
+      x-data="app()"
+      x-cloak
+      @keydown.escape.window="closeModals()"
+      class="h-screen flex flex-col overflow-hidden"
+    >
+      <!-- Topbar -->
+      <header
+        class="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-border bg-panel/80 backdrop-blur"
+      >
+        <div class="flex items-center gap-2 font-semibold tracking-tight">
+          <div class="w-6 h-6 rounded-md bg-accent/20 flex items-center justify-center">
+            <span class="w-2.5 h-2.5 rounded-sm bg-accent2"></span>
+          </div>
+          <span>Tasks</span>
+        </div>
+
+        <div class="h-5 w-px bg-border"></div>
+
+        <!-- Selector de vista -->
+        <div class="flex items-center gap-1 p-0.5 rounded-lg bg-panel2 border border-border">
+          <template x-for="v in views" :key="v.id">
+            <button
+              @click="switchView(v.id)"
+              :class="viewMode===v.id ? 'bg-accent/20 text-ink' : 'text-muted hover:text-ink'"
+              class="px-3 py-1 text-sm rounded-md transition"
+              x-text="v.label"
+            ></button>
+          </template>
+        </div>
+
+        <div class="ml-auto flex items-center gap-2">
+          <button
+            @click="showProjModal=true"
+            class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
+          >
+            + Proyecto
+          </button>
+          <button
+            x-show="currentProjectId"
+            @click="showBoardModal=true"
+            class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
+          >
+            + Tablero
+          </button>
+        </div>
+      </header>
+
+      <div class="flex flex-1 min-h-0">
+        <!-- Sidebar -->
+        <aside
+          class="w-64 shrink-0 border-r border-border bg-panel/40 overflow-y-auto py-3 px-2"
+          x-show="viewMode!=='master'"
+        >
+          <div class="px-2 text-xs uppercase tracking-wider text-faint mb-2">Proyectos</div>
+          <template x-for="p in projects" :key="p.id">
+            <div class="mb-1 group/proj">
+              <div class="flex items-center gap-1">
+                <button
+                  @click="selectProject(p.id)"
+                  :class="currentProjectId===p.id ? 'bg-panel2 text-ink' : 'text-muted hover:bg-panel2/60'"
+                  class="flex-1 flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition"
+                >
+                  <span class="truncate" x-text="p.name"></span>
+                  <span class="text-faint text-xs" x-text="boardsByProject(p.id).length"></span>
+                </button>
+                <div class="hidden group-hover/proj:flex items-center gap-0.5 pr-1">
+                  <button
+                    @click.stop="openRename('project', p.id, p.name)"
+                    title="Renombrar proyecto"
+                    class="px-1.5 text-faint hover:text-ink transition"
+                  >✎</button>
+                  <button
+                    @click.stop="deleteProject(p.id)"
+                    title="Eliminar proyecto"
+                    class="px-1.5 text-faint hover:text-red-400 transition"
+                  >✕</button>
+                </div>
+              </div>
+              <div x-show="currentProjectId===p.id" class="ml-3 mt-0.5 space-y-0.5">
+                <template x-for="b in boardsByProject(p.id)" :key="b.id">
+                  <div class="group/board flex items-center gap-1">
+                    <button
+                      @click="selectBoard(b.id)"
+                      :class="currentBoardId===b.id ? 'text-ink bg-panel2/50' : 'text-faint hover:text-muted'"
+                      class="flex-1 text-left px-2 py-1 rounded-md text-[13px] truncate transition"
+                      x-text="b.name"
+                    ></button>
+                    <div class="hidden group-hover/board:flex items-center gap-0.5 pr-1">
+                      <button
+                        @click.stop="openRename('board', b.id, b.name)"
+                        title="Renombrar tablero"
+                        class="px-1 text-faint hover:text-ink transition"
+                      >✎</button>
+                      <button
+                        @click.stop="deleteBoard(b.id)"
+                        title="Eliminar tablero"
+                        class="px-1 text-faint hover:text-red-400 transition"
+                      >✕</button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div x-show="!projects.length" class="px-2 text-xs text-faint">
+            Aún no hay proyectos.
+          </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="flex-1 min-w-0 overflow-hidden flex flex-col">
+          <!-- Título del tablero -->
+          <div
+            class="h-12 shrink-0 flex items-center gap-3 px-5 border-b border-border"
+            x-show="viewMode!=='master'"
+          >
+            <h1 class="font-medium" x-text="currentBoard()?.name || 'Sin tablero'"></h1>
+            <span class="text-xs text-faint" x-text="boardTaskCount() + ' tareas'"></span>
+            <div class="ml-auto flex items-center gap-2">
+              <button
+                x-show="currentBoardId"
+                @click="openRename('board', currentBoardId, currentBoard()?.name)"
+                title="Renombrar tablero"
+                class="px-2.5 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
+              >✎</button>
+              <button
+                x-show="currentBoardId"
+                @click="deleteBoard(currentBoardId)"
+                title="Eliminar tablero"
+                class="px-2.5 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-red-400 transition"
+              >✕</button>
+              <button
+                @click="showTaskModal=true"
+                x-show="currentBoardId"
+                class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 hover:bg-accent/30 text-ink transition"
+              >
+                + Tarea
+              </button>
+            </div>
+          </div>
+
+          <!-- Vista Kanban -->
+          <div
+            x-show="viewMode==='kanban'"
+            class="flex-1 overflow-auto p-4"
+          >
+            <div class="flex gap-4 items-start" x-show="currentBoardId">
+              <template x-for="col in board.columns" :key="col.status.id">
+                <div
+                  class="w-72 shrink-0 flex flex-col bg-panel/60 border border-border rounded-xl2"
+                >
+                  <div
+                    class="flex items-center gap-2 px-3 py-2.5 border-b border-border"
+                  >
+                    <span
+                      class="w-2.5 h-2.5 rounded-full"
+                      :style="`background:${col.status.color}`"
+                    ></span>
+                    <span class="text-sm font-medium" x-text="col.status.name"></span>
+                    <span
+                      class="ml-auto text-xs text-faint"
+                      x-text="col.tasks.length"
+                    ></span>
+                  </div>
+                  <div
+                    class="p-2 space-y-2 min-h-[44px]"
+                    :data-status="col.status.id"
+                    x-ref="lists"
+                  >
+                    <template x-for="t in col.tasks" :key="t.id">
+                      <div
+                        class="group card-shadow rounded-lg bg-panel2 border border-border2 p-3 cursor-grab active:cursor-grabbing hover:border-border2/80 transition"
+                        :data-task="t.id"
+                      >
+                        <div class="text-sm text-ink leading-snug" x-text="t.title"></div>
+                        <p
+                          x-show="t.description"
+                          class="text-xs text-muted mt-1 line-clamp-2"
+                          x-text="t.description"
+                        ></p>
+                        <div class="flex items-center gap-2 mt-2">
+                          <span
+                            class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-panel border border-border text-faint"
+                            :class="{'text-accent2': t.priority==='high','text-amber-300': t.priority==='medium'}"
+                            x-text="t.priority"
+                          ></span>
+                          <span
+                            x-show="t.due_date"
+                            class="text-[11px] text-faint"
+                            x-text="t.due_date"
+                          ></span>
+                          <button
+                            @click="deleteTask(t.id)"
+                            class="ml-auto text-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                            title="Eliminar"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div
+              x-show="!currentBoardId"
+              class="h-full flex items-center justify-center text-faint text-sm"
+            >
+              Selecciona o crea un tablero para empezar.
+            </div>
+          </div>
+
+          <!-- Vista Tabla (por tablero) -->
+          <div x-show="viewMode==='table'" class="flex-1 overflow-auto p-4">
+            <table
+              class="w-full text-sm border-collapse"
+              x-show="currentBoardId"
+            >
+              <thead>
+                <tr class="text-left text-faint border-b border-border">
+                  <th class="py-2 px-3 font-medium">Título</th>
+                  <th class="py-2 px-3 font-medium">Estado</th>
+                  <th class="py-2 px-3 font-medium">Prioridad</th>
+                  <th class="py-2 px-3 font-medium">Vence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="t in allBoardTasks()" :key="t.id">
+                  <tr class="border-b border-border/60 hover:bg-panel2/40">
+                    <td class="py-2 px-3" x-text="t.title"></td>
+                    <td class="py-2 px-3">
+                      <select
+                        class="bg-panel2 border border-border2 rounded-md px-2 py-1 text-xs"
+                        :value="t.status_id"
+                        @change="moveTask(t.id, $event.target.value)"
+                      >
+                        <template
+                          x-for="col in board.columns"
+                          :key="col.status.id"
+                        >
+                          <option
+                            :value="col.status.id"
+                            x-text="col.status.name"
+                          ></option>
+                        </template>
+                      </select>
+                    </td>
+                    <td class="py-2 px-3">
+                      <select
+                        class="bg-panel2 border border-border2 rounded-md px-2 py-1 text-xs"
+                        :value="t.priority"
+                        @change="patchTask(t.id, {priority: $event.target.value})"
+                      >
+                        <option value="none">none</option>
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                      </select>
+                    </td>
+                    <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Master Table global -->
+          <div x-show="viewMode==='master'" class="flex-1 overflow-auto flex flex-col">
+            <!-- Filtros -->
+            <div class="shrink-0 flex flex-wrap items-end gap-3 p-4 border-b border-border">
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Estado
+                <select x-model="filters.status" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todos</option>
+                  <option value="Backlog">Backlog</option>
+                  <option value="To Do">To Do</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Done">Done</option>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Prioridad
+                <select x-model="filters.priority" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todas</option>
+                  <option value="none">none</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Proyecto
+                <select x-model="filters.project" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todos</option>
+                  <template x-for="p in projects" :key="p.id">
+                    <option :value="p.name" x-text="p.name"></option>
+                  </template>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Desde
+                <input type="date" x-model="filters.from" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm text-ink" />
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Hasta
+                <input type="date" x-model="filters.to" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm text-ink" />
+              </label>
+              <button @click="resetFilters()" class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted">
+                Limpiar
+              </button>
+              <span class="ml-auto text-xs text-faint" x-text="master.length + ' tareas'"></span>
+            </div>
+
+            <!-- Tabla -->
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="text-left text-faint border-b border-border sticky top-0 bg-base">
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('title')">Título</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('project')">Proyecto</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('status')">Estado</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('priority')">Prioridad</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('due_date')">Vence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="t in master" :key="t.id">
+                  <tr class="border-b border-border/60 hover:bg-panel2/40">
+                    <td class="py-2 px-3 text-ink" x-text="t.title"></td>
+                    <td class="py-2 px-3 text-muted" x-text="t.project_name"></td>
+                    <td class="py-2 px-3">
+                      <span class="inline-flex items-center gap-1.5 text-muted">
+                        <span class="w-2 h-2 rounded-full" :style="statusColor(t)"></span>
+                        <span x-text="t.status_name"></span>
+                      </span>
+                    </td>
+                    <td class="py-2 px-3" x-text="t.priority"></td>
+                    <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div x-show="!master.length" class="p-8 text-center text-faint text-sm">
+              No hay tareas que coincidan con los filtros.
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Modal Proyecto -->
+      <div
+        x-show="showProjModal"
+        @click.self="showProjModal=false"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      >
+        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+          <div class="font-medium mb-3">Nuevo proyecto</div>
+          <input
+            x-model="projName"
+            @keyup.enter="createProject()"
+            placeholder="Nombre del proyecto"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
+          />
+          <div class="flex justify-end gap-2">
+            <button @click="showProjModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
+            <button @click="createProject()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Crear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Tablero -->
+      <div
+        x-show="showBoardModal"
+        @click.self="showBoardModal=false"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      >
+        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+          <div class="font-medium mb-3">Nuevo tablero</div>
+          <input
+            x-model="boardName"
+            @keyup.enter="createBoard()"
+            placeholder="Nombre del tablero"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
+          />
+          <div class="flex justify-end gap-2">
+            <button @click="showBoardModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
+            <button @click="createBoard()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Crear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Tarea -->
+      <div
+        x-show="showTaskModal"
+        @click.self="showTaskModal=false"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      >
+        <div class="w-96 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+          <div class="font-medium mb-3">Nueva tarea</div>
+          <input
+            x-model="taskTitle"
+            @keyup.enter="createTask()"
+            placeholder="Título"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent"
+          />
+          <textarea
+            x-model="taskDesc"
+            placeholder="Descripción (opcional)"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent resize-none"
+            rows="2"
+          ></textarea>
+          <div class="flex gap-2 mb-3">
+            <select x-model="taskStatus" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
+              <template x-for="col in board.columns" :key="col.status.id">
+                <option :value="col.status.id" x-text="col.status.name"></option>
+              </template>
+            </select>
+            <select x-model="taskPriority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm">
+              <option value="none">none</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+            <input type="date" x-model="taskDue" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+          </div>
+            <div class="flex justify-end gap-2">
+              <button @click="showTaskModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
+              <button @click="createTask()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Crear</button>
+            </div>
+          </div>
+        </div>
+
+      <!-- Modal Renombrar -->
+      <div
+        x-show="showRenameModal"
+        @click.self="showRenameModal=false"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      >
+        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+          <div class="font-medium mb-3" x-text="renameType === 'project' ? 'Renombrar proyecto' : 'Renombrar tablero'"></div>
+          <input
+            x-model="renameName"
+            @keyup.enter="doRename()"
+            placeholder="Nuevo nombre"
+            class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
+          />
+          <div class="flex justify-end gap-2">
+            <button @click="showRenameModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
+            <button @click="doRename()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      [x-cloak] { display: none !important; }
+    </style>
+    <script>
+      // El bfcache (caché de navegación) puede restaurar el DOM con un modal
+      // abierto y sin re-ejecutar init(). Forzamos el cierre en ese caso.
+      window.addEventListener("pageshow", function (e) {
+        if (e.persisted && window.Alpine) {
+          var el = document.querySelector("[x-data]");
+          if (el) {
+            var d = Alpine.$data(el);
+            d.showProjModal = false;
+            d.showBoardModal = false;
+            d.showTaskModal = false;
+            d.showRenameModal = false;
+          }
+        }
+      });
+    </script>
+    <script src="/assets/vendor/htmx.min.js"></script>
+    <script src="/assets/vendor/sortable.min.js"></script>
+    <script src="/assets/app.js"></script>
+    <script src="/assets/vendor/alpine.min.js" defer></script>
+  </body>
+</html>

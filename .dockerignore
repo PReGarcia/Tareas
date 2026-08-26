@@ -1,0 +1,15 @@
+# Dependencias / build
+web/node_modules
+web/dist
+data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Go
+/server
+/out
+
+# OS
+.DS_Store
