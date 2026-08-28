@@ -84,6 +84,29 @@ func migrate() error {
 			return fmt.Errorf("migración: %w", err)
 		}
 	}
+
+	// Etiquetas de tareas: columna TEXT con un JSON array (["bug","urgente"]).
+	if err := addColumnIfNotExists("tasks", "tags", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// addColumnIfNotExists añade una columna solo si no existe ya (SQLite no
+// soporta ADD COLUMN IF NOT EXISTS).
+func addColumnIfNotExists(table, column, def string) error {
+	var cnt int
+	if err := DB.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?`, table, column,
+	).Scan(&cnt); err != nil {
+		return fmt.Errorf("comprobar columna %s.%s: %w", table, column, err)
+	}
+	if cnt > 0 {
+		return nil
+	}
+	if _, err := DB.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + def); err != nil {
+		return fmt.Errorf("añadir columna %s.%s: %w", table, column, err)
+	}
 	return nil
 }
 

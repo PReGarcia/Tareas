@@ -16,16 +16,25 @@
     >
       <!-- Topbar -->
       <header
-        class="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-border bg-panel/80 backdrop-blur"
+        class="relative z-50 h-14 shrink-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 border-b border-border bg-panel/80 backdrop-blur"
       >
-        <div class="flex items-center gap-2 font-semibold tracking-tight">
+        <button
+          @click="sidebarOpen=!sidebarOpen"
+          x-show="viewMode!=='master'"
+          class="md:hidden p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition shrink-0"
+          title="Menú"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+
+        <div class="flex items-center gap-2 font-semibold tracking-tight shrink-0">
           <div class="w-6 h-6 rounded-md bg-accent/20 flex items-center justify-center">
             <span class="w-2.5 h-2.5 rounded-sm bg-accent2"></span>
           </div>
-          <span>Tasks</span>
+          <span class="hidden sm:inline">Tasks</span>
         </div>
 
-        <div class="h-5 w-px bg-border"></div>
+        <div class="h-5 w-px bg-border hidden sm:block"></div>
 
         <!-- Selector de vista -->
         <div class="flex items-center gap-1 p-0.5 rounded-lg bg-panel2 border border-border">
@@ -33,7 +42,7 @@
             <button
               @click="switchView(v.id)"
               :class="viewMode===v.id ? 'bg-accent/20 text-ink' : 'text-muted hover:text-ink'"
-              class="px-3 py-1 text-sm rounded-md transition"
+              class="px-2.5 sm:px-3 py-1 text-sm rounded-md transition"
               x-text="v.label"
             ></button>
           </template>
@@ -42,24 +51,32 @@
         <div class="ml-auto flex items-center gap-2">
           <button
             @click="showProjModal=true"
-            class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
+            class="px-2.5 sm:px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
           >
-            + Proyecto
+            <span class="sm:hidden">+Pr</span><span class="hidden sm:inline">+ Proyecto</span>
           </button>
           <button
             x-show="currentProjectId"
             @click="showBoardModal=true"
-            class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
+            class="px-2.5 sm:px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted hover:text-ink transition"
           >
-            + Tablero
+            <span class="sm:hidden">+Tb</span><span class="hidden sm:inline">+ Tablero</span>
           </button>
         </div>
       </header>
 
       <div class="flex flex-1 min-h-0">
+        <!-- Backdrop móvil para el sidebar -->
+        <div
+          x-show="sidebarOpen && viewMode!=='master'"
+          @click="sidebarOpen=false"
+          class="fixed inset-0 bg-black/50 z-30 md:hidden"
+        ></div>
+
         <!-- Sidebar -->
         <aside
-          class="w-64 shrink-0 border-r border-border bg-panel/40 overflow-y-auto py-3 px-2"
+          class="fixed md:static inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-border bg-panel/95 md:bg-panel/40 overflow-y-auto px-2 pt-16 md:pt-3 pb-3 transition-transform duration-200 md:translate-x-0"
+          :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
           x-show="viewMode!=='master'"
         >
           <div class="px-2 text-xs uppercase tracking-wider text-faint mb-2">Proyectos</div>
@@ -122,10 +139,10 @@
         <main class="flex-1 min-w-0 overflow-hidden flex flex-col">
           <!-- Título del tablero -->
           <div
-            class="h-12 shrink-0 flex items-center gap-3 px-5 border-b border-border"
+            class="h-auto shrink-0 flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-0 border-b border-border"
             x-show="viewMode!=='master'"
           >
-            <h1 class="font-medium" x-text="currentBoard()?.name || 'Sin tablero'"></h1>
+            <h1 class="font-medium truncate" x-text="currentBoard()?.name || 'Sin tablero'"></h1>
             <span class="text-xs text-faint" x-text="boardTaskCount() + ' tareas'"></span>
             <div class="ml-auto flex items-center gap-2">
               <button
@@ -215,6 +232,14 @@
                             ✕
                           </button>
                         </div>
+                        <div class="flex flex-wrap gap-1 mt-2" x-show="t.tags && t.tags.length">
+                          <template x-for="tag in t.tags" :key="tag">
+                            <span
+                              class="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 border border-accent/25 text-accent2"
+                              x-text="tag"
+                            ></span>
+                          </template>
+                        </div>
                       </div>
                     </template>
                   </div>
@@ -231,20 +256,67 @@
 
           <!-- Vista Tabla (por tablero) -->
           <div x-show="viewMode==='table'" class="flex-1 overflow-auto p-4">
+            <!-- Filtros (mismos que la Master Table global) -->
+            <div
+              class="flex flex-wrap items-end gap-3 mb-3"
+              x-show="currentBoardId"
+            >
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Estado
+                <select x-model="boardFilter.status" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todos</option>
+                  <template x-for="col in board.columns" :key="col.status.id">
+                    <option :value="col.status.name" x-text="col.status.name"></option>
+                  </template>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Prioridad
+                <select x-model="boardFilter.priority" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todas</option>
+                  <option value="none">none</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Etiqueta
+                <select x-model="boardFilter.tag" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todas</option>
+                  <template x-for="tag in boardTags()" :key="tag">
+                    <option :value="tag" x-text="tag"></option>
+                  </template>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Desde
+                <input type="date" x-model="boardFilter.from" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm text-ink" />
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
+                Hasta
+                <input type="date" x-model="boardFilter.to" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm text-ink" />
+              </label>
+              <button @click="resetBoardFilters()" class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted">
+                Limpiar
+              </button>
+              <span class="text-xs text-faint" x-text="filteredBoardTasks().length + ' tareas'"></span>
+            </div>
             <table
-              class="w-full text-sm border-collapse"
+              class="w-full text-sm border-collapse min-w-[560px]"
               x-show="currentBoardId"
             >
               <thead>
                 <tr class="text-left text-faint border-b border-border">
-                  <th class="py-2 px-3 font-medium">Título</th>
-                  <th class="py-2 px-3 font-medium">Estado</th>
-                  <th class="py-2 px-3 font-medium">Prioridad</th>
-                  <th class="py-2 px-3 font-medium">Vence</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('title')">Título</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('status')">Estado</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('priority')">Prioridad</th>
+                  <th class="py-2 px-3 font-medium">Etiquetas</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('due_date')">Vence</th>
                 </tr>
               </thead>
               <tbody>
-                <template x-for="t in allBoardTasks()" :key="t.id">
+                <template x-for="t in filteredBoardTasks()" :key="t.id">
                   <tr class="border-b border-border/60 hover:bg-panel2/40">
                     <td class="py-2 px-3" x-text="t.title"></td>
                     <td class="py-2 px-3">
@@ -275,6 +347,16 @@
                         <option value="medium">medium</option>
                         <option value="high">high</option>
                       </select>
+                    </td>
+                    <td class="py-2 px-3">
+                      <div class="flex flex-wrap gap-1">
+                        <template x-for="tag in t.tags" :key="tag">
+                          <span
+                            class="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 border border-accent/25 text-accent2"
+                            x-text="tag"
+                          ></span>
+                        </template>
+                      </div>
                     </td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
                     <td class="py-2 px-3">
@@ -324,6 +406,15 @@
                 </select>
               </label>
               <label class="text-xs text-faint flex flex-col gap-1">
+                Etiqueta
+                <select x-model="filters.tag" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todas</option>
+                  <template x-for="tag in tags" :key="tag">
+                    <option :value="tag" x-text="tag"></option>
+                  </template>
+                </select>
+              </label>
+              <label class="text-xs text-faint flex flex-col gap-1">
                 Desde
                 <input type="date" x-model="filters.from" @change="loadMaster()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm text-ink" />
               </label>
@@ -338,13 +429,14 @@
             </div>
 
             <!-- Tabla -->
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse min-w-[680px]">
               <thead>
                 <tr class="text-left text-faint border-b border-border sticky top-0 bg-base">
                   <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('title')">Título</th>
                   <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('project')">Proyecto</th>
                   <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('status')">Estado</th>
                   <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('priority')">Prioridad</th>
+                  <th class="py-2 px-3 font-medium">Etiquetas</th>
                   <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('due_date')">Vence</th>
                 </tr>
               </thead>
@@ -360,6 +452,16 @@
                       </span>
                     </td>
                     <td class="py-2 px-3" x-text="t.priority"></td>
+                    <td class="py-2 px-3">
+                      <div class="flex flex-wrap gap-1">
+                        <template x-for="tag in t.tags" :key="tag">
+                          <span
+                            class="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 border border-accent/25 text-accent2"
+                            x-text="tag"
+                          ></span>
+                        </template>
+                      </div>
+                    </td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
                     <td class="py-2 px-3">
                       <button
@@ -385,7 +487,7 @@
         @click.self="showProjModal=false"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
-        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+        <div class="w-[90vw] max-w-sm bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
           <div class="font-medium mb-3">Nuevo proyecto</div>
           <input
             x-model="projName"
@@ -406,7 +508,7 @@
         @click.self="showBoardModal=false"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
-        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+        <div class="w-[90vw] max-w-sm bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
           <div class="font-medium mb-3">Nuevo tablero</div>
           <input
             x-model="boardName"
@@ -427,7 +529,7 @@
         @click.self="showTaskModal=false"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
-        <div class="w-96 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+        <div class="w-[90vw] max-w-md bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
           <div class="font-medium mb-3">Nueva tarea</div>
           <input
             x-model="taskTitle"
@@ -441,20 +543,25 @@
             class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent resize-none"
             rows="2"
           ></textarea>
-          <div class="flex gap-2 mb-3">
-            <select x-model="taskStatus" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
-              <template x-for="col in board.columns" :key="col.status.id">
-                <option :value="col.status.id" x-text="col.status.name"></option>
-              </template>
-            </select>
-            <select x-model="taskPriority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm">
-              <option value="none">none</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-            <input type="date" x-model="taskDue" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
-          </div>
+           <div class="flex flex-wrap gap-2 mb-3">
+             <select x-model="taskStatus" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
+               <template x-for="col in board.columns" :key="col.status.id">
+                 <option :value="col.status.id" x-text="col.status.name"></option>
+               </template>
+             </select>
+             <select x-model="taskPriority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm">
+               <option value="none">none</option>
+               <option value="low">low</option>
+               <option value="medium">medium</option>
+               <option value="high">high</option>
+             </select>
+             <input type="date" x-model="taskDue" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+           </div>
+           <input
+             x-model="taskTags"
+             placeholder="Etiquetas (separadas por coma)"
+             class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
+           />
             <div class="flex justify-end gap-2">
               <button @click="showTaskModal=false" class="px-3 py-1.5 text-sm rounded-lg border border-border2 text-muted">Cancelar</button>
               <button @click="createTask()" class="px-3 py-1.5 text-sm rounded-lg bg-accent/20 border border-accent/30 text-ink">Crear</button>
@@ -468,7 +575,7 @@
         @click.self="showTaskEditModal=false"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
-        <div class="w-96 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+        <div class="w-[90vw] max-w-md bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
           <div class="font-medium mb-3">Editar tarea</div>
           <input
             x-model="editTask.title"
@@ -482,16 +589,21 @@
             class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-2 outline-none focus:border-accent resize-none"
             rows="3"
           ></textarea>
-          <div class="flex gap-2 mb-3">
-            <select x-model="editTask.priority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
-              <option value="none">none</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-            <input type="date" x-model="editTask.dueDate" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
-          </div>
-          <div class="flex gap-2 mb-3" x-show="currentBoardId">
+           <div class="flex flex-wrap gap-2 mb-3">
+             <select x-model="editTask.priority" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
+               <option value="none">none</option>
+               <option value="low">low</option>
+               <option value="medium">medium</option>
+               <option value="high">high</option>
+             </select>
+             <input type="date" x-model="editTask.dueDate" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+           </div>
+           <input
+             x-model="editTask.tags"
+             placeholder="Etiquetas (separadas por coma)"
+             class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
+           />
+          <div class="flex flex-wrap gap-2 mb-3" x-show="currentBoardId">
             <select x-model="editTask.statusId" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm flex-1">
               <template x-for="col in board.columns" :key="col.status.id">
                 <option :value="col.status.id" x-text="col.status.name"></option>
@@ -511,7 +623,7 @@
         @click.self="showRenameModal=false"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
-        <div class="w-80 bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+        <div class="w-[90vw] max-w-sm bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
           <div class="font-medium mb-3" x-text="renameType === 'project' ? 'Renombrar proyecto' : 'Renombrar tablero'"></div>
           <input
             x-model="renameName"

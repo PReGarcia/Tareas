@@ -7,13 +7,15 @@ function app() {
     currentProjectId: null,
     currentBoardId: null,
     viewMode: "kanban",
+    sidebarOpen: true,
     views: [
       { id: "kanban", label: "Kanban" },
       { id: "table", label: "Tabla" },
       { id: "master", label: "Global" },
     ],
     master: [],
-    filters: { status: "", priority: "", project: "", from: "", to: "", sort: "", order: "desc" },
+    filters: { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" },
+    tags: [],
 
     // Modales
     showProjModal: false,
@@ -24,7 +26,7 @@ function app() {
     renameId: null,
     renameName: "",
     showTaskEditModal: false,
-    editTask: { id: null, title: "", description: "", priority: "none", dueDate: "", statusId: null },
+    editTask: { id: null, title: "", description: "", priority: "none", dueDate: "", statusId: null, tags: "" },
     projName: "",
     boardName: "",
     taskTitle: "",
@@ -32,6 +34,10 @@ function app() {
     taskStatus: null,
     taskPriority: "none",
     taskDue: "",
+    taskTags: "",
+
+    // Filtro de la vista de tabla por tablero (espejo de los filtros globales)
+    boardFilter: { status: "", priority: "", tag: "", from: "", to: "", sort: "", order: "desc" },
 
     _sortables: [],
 
@@ -54,9 +60,14 @@ function app() {
       this.showTaskModal = false;
       this.showRenameModal = false;
       await this.loadProjects();
+      await this.loadTags();
       if (this.projects.length) {
         await this.selectProject(this.projects[0].id);
       }
+    },
+
+    async loadTags() {
+      this.tags = await this.api("/tags");
     },
 
     switchView(id) {
@@ -76,6 +87,71 @@ function app() {
     },
     allBoardTasks() {
       return this.board.columns.flatMap((c) => c.tasks);
+    },
+    filteredBoardTasks() {
+      let tasks = this.allBoardTasks();
+      const f = this.boardFilter;
+      if (f.tag) tasks = tasks.filter((t) => (t.tags || []).includes(f.tag));
+      if (f.status) tasks = tasks.filter((t) => this.boardStatusName(t.status_id) === f.status);
+      if (f.priority) tasks = tasks.filter((t) => t.priority === f.priority);
+      if (f.from) tasks = tasks.filter((t) => t.due_date && t.due_date >= f.from);
+      if (f.to) tasks = tasks.filter((t) => t.due_date && t.due_date <= f.to);
+
+      const col = f.sort;
+      const dir = f.order === "asc" ? 1 : -1;
+      if (col) {
+        const prio = { none: 0, low: 1, medium: 2, high: 3 };
+        tasks = tasks.slice().sort((a, b) => {
+          let av, bv;
+          switch (col) {
+            case "title":
+              av = a.title; bv = b.title; break;
+            case "priority":
+              av = prio[a.priority] || 0; bv = prio[b.priority] || 0; break;
+            case "due_date":
+              av = a.due_date || ""; bv = b.due_date || ""; break;
+            case "status":
+              av = this.boardStatusName(a.status_id); bv = this.boardStatusName(b.status_id); break;
+            default:
+              return 0;
+          }
+          if (av < bv) return -1 * dir;
+          if (av > bv) return 1 * dir;
+          return 0;
+        });
+      }
+      return tasks;
+    },
+    boardStatusName(id) {
+      const col = this.board.columns.find((c) => c.status.id === id);
+      return col ? col.status.name : "";
+    },
+    boardSortBy(col) {
+      if (this.boardFilter.sort === col)
+        this.boardFilter.order = this.boardFilter.order === "asc" ? "desc" : "asc";
+      else {
+        this.boardFilter.sort = col;
+        this.boardFilter.order = "asc";
+      }
+    },
+    resetBoardFilters() {
+      this.boardFilter = { status: "", priority: "", tag: "", from: "", to: "", sort: "", order: "desc" };
+    },
+    boardTags() {
+      const set = new Set();
+      this.allBoardTasks().forEach((t) => (t.tags || []).forEach((tag) => set.add(tag)));
+      return Array.from(set).sort();
+    },
+    parseTags(str) {
+      if (!str) return [];
+      return Array.from(
+        new Set(
+          str
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s)
+        )
+      );
     },
 
     // ---- Carga ----
@@ -105,6 +181,7 @@ function app() {
     async selectBoard(bid) {
       this.currentBoardId = bid;
       this.board = await this.api("/boards/" + bid);
+      this.sidebarOpen = false;
       if (this.viewMode === "kanban") this.$nextTick(() => this.initSortable());
     },
 
@@ -172,6 +249,7 @@ function app() {
         description: this.taskDesc,
         status_id: Number(this.taskStatus),
         priority: this.taskPriority,
+        tags: this.parseTags(this.taskTags),
       };
       if (this.taskDue) body.due_date = this.taskDue;
       await this.api("/boards/" + this.currentBoardId + "/tasks", {
@@ -182,8 +260,10 @@ function app() {
       this.taskDesc = "";
       this.taskDue = "";
       this.taskPriority = "none";
+      this.taskTags = "";
       this.showTaskModal = false;
       await this.selectBoard(this.currentBoardId);
+      await this.loadTags();
     },
 
     async moveTask(taskId, statusId) {
@@ -274,6 +354,7 @@ function app() {
         priority: task.priority,
         dueDate: task.due_date || "",
         statusId: task.status_id,
+        tags: (task.tags || []).join(", "),
       };
       this.showTaskEditModal = true;
     },
@@ -285,6 +366,7 @@ function app() {
         description: this.editTask.description,
         priority: this.editTask.priority,
         due_date: this.editTask.dueDate ? this.editTask.dueDate : null,
+        tags: this.parseTags(this.editTask.tags),
       };
       if (this.viewMode !== "master") body.status_id = Number(this.editTask.statusId);
       await this.api("/tasks/" + this.editTask.id, {
@@ -294,6 +376,7 @@ function app() {
       this.showTaskEditModal = false;
       if (this.viewMode === "master") await this.loadMaster();
       else await this.selectBoard(this.currentBoardId);
+      await this.loadTags();
     },
 
     // ---- Master Table ----
@@ -302,6 +385,7 @@ function app() {
       if (this.filters.status) q.set("status", this.filters.status);
       if (this.filters.priority) q.set("priority", this.filters.priority);
       if (this.filters.project) q.set("project", this.filters.project);
+      if (this.filters.tag) q.set("tag", this.filters.tag);
       if (this.filters.from) q.set("from", this.filters.from);
       if (this.filters.to) q.set("to", this.filters.to);
       if (this.filters.sort) q.set("sort", this.filters.sort);
@@ -320,7 +404,7 @@ function app() {
     },
 
     resetFilters() {
-      this.filters = { status: "", priority: "", project: "", from: "", to: "", sort: "", order: "desc" };
+      this.filters = { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" };
       this.loadMaster();
     },
 

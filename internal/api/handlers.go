@@ -28,6 +28,7 @@ func Register(app *fiber.App) {
 	api.Delete("/tasks/:id", deleteTask)
 
 	api.Get("/tasks", listTasksGlobal)
+	api.Get("/tags", listTags)
 }
 
 func listProjects(c *fiber.Ctx) error {
@@ -183,11 +184,12 @@ func createTask(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "id inválido")
 	}
 	var body struct {
-		Title       string  `json:"title"`
-		Description string  `json:"description"`
-		StatusID    int64   `json:"status_id"`
-		Priority    string  `json:"priority"`
-		DueDate     *string `json:"due_date"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		StatusID    int64    `json:"status_id"`
+		Priority    string   `json:"priority"`
+		DueDate     *string  `json:"due_date"`
+		Tags        []string `json:"tags"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Title == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "title requerido")
@@ -198,7 +200,7 @@ func createTask(c *fiber.Ctx) error {
 	if body.Priority == "" {
 		body.Priority = "none"
 	}
-	t, err := db.CreateTask(int64(bid), body.StatusID, body.Title, body.Description, body.Priority, body.DueDate)
+	t, err := db.CreateTask(int64(bid), body.StatusID, body.Title, body.Description, body.Priority, body.DueDate, body.Tags)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
@@ -235,9 +237,27 @@ func updateTask(c *fiber.Ctx) error {
 		"priority":    "priority",
 		"due_date":    "due_date",
 		"position":    "position",
+		"tags":        "tags",
 	}
 	for k, col := range allowed {
-		if v, ok := body[k]; ok {
+		v, ok := body[k]
+		if !ok {
+			continue
+		}
+		if k == "tags" {
+			// El body trae las etiquetas como array JSON; se serializa a texto.
+			arr, ok := v.([]interface{})
+			if !ok {
+				continue
+			}
+			tags := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok && s != "" {
+					tags = append(tags, s)
+				}
+			}
+			fields[col] = db.MarshalTags(tags)
+		} else {
 			fields[col] = v
 		}
 	}
@@ -296,6 +316,7 @@ func listTasksGlobal(c *fiber.Ctx) error {
 		Status:   c.Query("status"),
 		Priority: c.Query("priority"),
 		Project:  c.Query("project"),
+		Tag:      c.Query("tag"),
 		From:     c.Query("from"),
 		To:       c.Query("to"),
 		Sort:     c.Query("sort"),
@@ -306,4 +327,12 @@ func listTasksGlobal(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(rows)
+}
+
+func listTags(c *fiber.Ctx) error {
+	tags, err := db.ListAllTags()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(tags)
 }

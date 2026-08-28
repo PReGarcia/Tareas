@@ -2,12 +2,37 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"taskmanager/internal/models"
 )
+
+// MarshalTags serializa las etiquetas a JSON para guardarlas en TEXT.
+func MarshalTags(tags []string) string {
+	if len(tags) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(tags)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+// scanTags deserializa el JSON de etiquetas guardado en TEXT.
+func scanTags(s sql.NullString) []string {
+	if !s.Valid || s.String == "" {
+		return []string{}
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(s.String), &out); err != nil || out == nil {
+		return []string{}
+	}
+	return out
+}
 
 // ---- Projects ----
 
@@ -128,7 +153,7 @@ func CreateStatus(boardID int64, name, color string) (*models.Status, error) {
 
 // ---- Tasks ----
 
-func CreateTask(boardID, statusID int64, title, description, priority string, dueDate *string) (*models.Task, error) {
+func CreateTask(boardID, statusID int64, title, description, priority string, dueDate *string, tags []string) (*models.Task, error) {
 	var pos int
 	DB.QueryRow(`SELECT COALESCE(MAX(position), -1) FROM tasks WHERE status_id=?`, statusID).Scan(&pos)
 	pos++
@@ -136,8 +161,8 @@ func CreateTask(boardID, statusID int64, title, description, priority string, du
 	if dueDate != nil {
 		dd = *dueDate
 	}
-	res, err := DB.Exec(`INSERT INTO tasks(board_id, status_id, title, description, priority, due_date, position)
-		VALUES(?,?,?,?,?,?,?)`, boardID, statusID, title, description, priority, dd, pos)
+	res, err := DB.Exec(`INSERT INTO tasks(board_id, status_id, title, description, priority, due_date, tags, position)
+		VALUES(?,?,?,?,?,?,?,?)`, boardID, statusID, title, description, priority, dd, MarshalTags(tags), pos)
 	if err != nil {
 		return nil, err
 	}
@@ -147,10 +172,10 @@ func CreateTask(boardID, statusID int64, title, description, priority string, du
 
 func GetTask(id int64) (*models.Task, error) {
 	var t models.Task
-	var desc, dd sql.NullString
-	err := DB.QueryRow(`SELECT id, board_id, title, description, status_id, priority, due_date, position, created_at, updated_at
+	var desc, dd, tagsJSON sql.NullString
+	err := DB.QueryRow(`SELECT id, board_id, title, description, status_id, priority, due_date, tags, position, created_at, updated_at
 		FROM tasks WHERE id=?`, id).
-		Scan(&t.ID, &t.BoardID, &t.Title, &desc, &t.StatusID, &t.Priority, &dd, &t.Position, &t.CreatedAt, &t.UpdatedAt)
+		Scan(&t.ID, &t.BoardID, &t.Title, &desc, &t.StatusID, &t.Priority, &dd, &tagsJSON, &t.Position, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -161,6 +186,7 @@ func GetTask(id int64) (*models.Task, error) {
 	if dd.Valid {
 		t.DueDate = &dd.String
 	}
+	t.Tags = scanTags(tagsJSON)
 	return &t, nil
 }
 
@@ -299,7 +325,7 @@ func GetBoardView(boardID int64) (*models.BoardView, error) {
 	}
 	statusRows.Close()
 
-	taskRows, err := DB.Query(`SELECT id, board_id, title, description, status_id, priority, due_date, position, created_at, updated_at
+	taskRows, err := DB.Query(`SELECT id, board_id, title, description, status_id, priority, due_date, tags, position, created_at, updated_at
 		FROM tasks WHERE board_id=? ORDER BY position`, boardID)
 	if err != nil {
 		return nil, err
@@ -309,14 +335,15 @@ func GetBoardView(boardID int64) (*models.BoardView, error) {
 	tasksByStatus := map[int64][]models.Task{}
 	for taskRows.Next() {
 		var t models.Task
-		var desc, dd sql.NullString
-		if err := taskRows.Scan(&t.ID, &t.BoardID, &t.Title, &desc, &t.StatusID, &t.Priority, &dd, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		var desc, dd, tagsJSON sql.NullString
+		if err := taskRows.Scan(&t.ID, &t.BoardID, &t.Title, &desc, &t.StatusID, &t.Priority, &dd, &tagsJSON, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		t.Description = desc.String
 		if dd.Valid {
 			t.DueDate = &dd.String
 		}
+		t.Tags = scanTags(tagsJSON)
 		tasksByStatus[t.StatusID] = append(tasksByStatus[t.StatusID], t)
 	}
 
@@ -350,6 +377,12 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 		where = append(where, "p.name = ?")
 		args = append(args, f.Project)
 	}
+	if f.Tag != "" {
+		// Las etiquetas se guardan como JSON array en TEXT; buscamos la etiqueta
+		// entrecomillada para evitar coincidencias parciales ("urgent" vs "urgently").
+		where = append(where, "t.tags LIKE ?")
+		args = append(args, "%\""+f.Tag+"\"%")
+	}
 	if f.From != "" {
 		where = append(where, "t.due_date >= ?")
 		args = append(args, f.From)
@@ -359,7 +392,7 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 		args = append(args, f.To)
 	}
 
-	q := `SELECT t.id, t.board_id, t.title, t.description, t.status_id, t.priority, t.due_date,
+	q := `SELECT t.id, t.board_id, t.title, t.description, t.status_id, t.priority, t.due_date, t.tags,
 		t.position, t.created_at, t.updated_at, p.name, b.name, st.name
 		FROM tasks t
 		JOIN boards b ON b.id = t.board_id
@@ -397,8 +430,8 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 	out := []models.TaskRow{}
 	for rows.Next() {
 		var r models.TaskRow
-		var desc, dd sql.NullString
-		if err := rows.Scan(&r.ID, &r.BoardID, &r.Title, &desc, &r.StatusID, &r.Priority, &dd,
+		var desc, dd, tagsJSON sql.NullString
+		if err := rows.Scan(&r.ID, &r.BoardID, &r.Title, &desc, &r.StatusID, &r.Priority, &dd, &tagsJSON,
 			&r.Position, &r.CreatedAt, &r.UpdatedAt, &r.ProjectName, &r.BoardName, &r.StatusName); err != nil {
 			return nil, err
 		}
@@ -406,7 +439,42 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 		if dd.Valid {
 			r.DueDate = &dd.String
 		}
+		r.Tags = scanTags(tagsJSON)
 		out = append(out, r)
+	}
+	return out, nil
+}
+
+// ListAllTags devuelve todas las etiquetas distintas usadas en tareas,
+// ordenadas alfabéticamente, para poblar el filtro de la Master Table.
+func ListAllTags() ([]string, error) {
+	rows, err := DB.Query(`SELECT tags FROM tasks WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	seen := map[string]bool{}
+	out := []string{}
+	for rows.Next() {
+		var tagsJSON sql.NullString
+		if err := rows.Scan(&tagsJSON); err != nil {
+			return nil, err
+		}
+		for _, tag := range scanTags(tagsJSON) {
+			if !seen[tag] {
+				seen[tag] = true
+				out = append(out, tag)
+			}
+		}
+	}
+	// Orden alfabético simple y sin dependencias.
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[j] < out[i] {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
 	}
 	return out, nil
 }

@@ -31,6 +31,7 @@ type Task struct {
 	StatusID    int64     `json:"status_id"`
 	Priority    string    `json:"priority"`
 	DueDate     *string   `json:"due_date"`
+	Tags        []string  `json:"tags"`
 	Position    int       `json:"position"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -61,6 +62,7 @@ type TaskFilters struct {
 	Status   string
 	Priority string
 	Project  string
+	Tag      string
 	From     string
 	To       string
 	Sort     string
