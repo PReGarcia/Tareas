@@ -27,6 +27,15 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
 
+        <button
+          @click="toggleSidebar()"
+          x-show="viewMode!=='master'"
+          class="hidden md:inline-flex p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition shrink-0"
+          :title="sidebarCollapsed ? 'Mostrar sidebar' : 'Ocultar sidebar'"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+        </button>
+
         <div class="flex items-center gap-2 font-semibold tracking-tight shrink-0">
           <div class="w-6 h-6 rounded-md bg-accent/20 flex items-center justify-center">
             <span class="w-2.5 h-2.5 rounded-sm bg-accent2"></span>
@@ -73,10 +82,20 @@
           class="fixed inset-0 bg-black/50 z-30 md:hidden"
         ></div>
 
+        <!-- Zona de hover para revelar el sidebar cuando está colapsado (solo escritorio) -->
+        <div
+          x-show="sidebarCollapsed && viewMode!=='master'"
+          @mouseenter="sidebarHover=true"
+          @mouseleave="sidebarHover=false"
+          class="hidden md:block fixed inset-y-0 left-0 z-30 w-4 cursor-pointer"
+        ></div>
+
         <!-- Sidebar -->
         <aside
-          class="fixed md:static inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-border bg-panel/95 md:bg-panel/40 overflow-y-auto px-2 pt-16 md:pt-3 pb-3 transition-transform duration-200 md:translate-x-0"
-          :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+          class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-border bg-panel/95 md:bg-panel/40 overflow-y-auto px-2 pt-16 md:pt-3 pb-3 transition-transform duration-200"
+          :class="sidebarClasses()"
+          @mouseenter="sidebarHover=true"
+          @mouseleave="sidebarHover=false"
           x-show="viewMode!=='master'"
         >
           <div class="px-2 text-xs uppercase tracking-wider text-faint mb-2">Proyectos</div>
@@ -308,11 +327,19 @@
             >
               <thead>
                 <tr class="text-left text-faint border-b border-border">
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('title')">Título</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('status')">Estado</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('priority')">Prioridad</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="boardSortBy('title')">
+                    Título <span x-show="boardFilter.sort==='title'" x-text="boardFilter.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="boardSortBy('status')">
+                    Estado <span x-show="boardFilter.sort==='status'" x-text="boardFilter.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="boardSortBy('priority')">
+                    Prioridad <span x-show="boardFilter.sort==='priority'" x-text="boardFilter.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
                   <th class="py-2 px-3 font-medium">Etiquetas</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="boardSortBy('due_date')">Vence</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="boardSortBy('due_date')">
+                    Vence <span x-show="boardFilter.sort==='due_date'" x-text="boardFilter.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -360,11 +387,18 @@
                     </td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
                     <td class="py-2 px-3">
-                      <button
-                        @click="openTaskEdit(t)"
-                        class="text-faint hover:text-ink transition"
-                        title="Editar"
-                      >✎</button>
+                      <div class="flex items-center gap-1">
+                        <button
+                          @click="openTaskEdit(t)"
+                          class="text-faint hover:text-ink transition"
+                          title="Editar"
+                        >✎</button>
+                        <button
+                          @click="deleteTask(t.id)"
+                          class="text-faint hover:text-red-400 transition"
+                          title="Eliminar"
+                        >✕</button>
+                      </div>
                     </td>
                   </tr>
                 </template>
@@ -432,12 +466,22 @@
             <table class="w-full text-sm border-collapse min-w-[680px]">
               <thead>
                 <tr class="text-left text-faint border-b border-border sticky top-0 bg-base">
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('title')">Título</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('project')">Proyecto</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('status')">Estado</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('priority')">Prioridad</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="sortBy('title')">
+                    Título <span x-show="filters.sort==='title'" x-text="filters.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="sortBy('project')">
+                    Proyecto <span x-show="filters.sort==='project'" x-text="filters.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="sortBy('status')">
+                    Estado <span x-show="filters.sort==='status'" x-text="filters.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="sortBy('priority')">
+                    Prioridad <span x-show="filters.sort==='priority'" x-text="filters.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
                   <th class="py-2 px-3 font-medium">Etiquetas</th>
-                  <th class="py-2 px-3 font-medium cursor-pointer" @click="sortBy('due_date')">Vence</th>
+                  <th class="py-2 px-3 font-medium cursor-pointer select-none hover:text-ink transition" @click="sortBy('due_date')">
+                    Vence <span x-show="filters.sort==='due_date'" x-text="filters.order==='asc'?'▲':'▼'" class="text-accent2"></span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -446,12 +490,28 @@
                     <td class="py-2 px-3 text-ink" x-text="t.title"></td>
                     <td class="py-2 px-3 text-muted" x-text="t.project_name"></td>
                     <td class="py-2 px-3">
-                      <span class="inline-flex items-center gap-1.5 text-muted">
-                        <span class="w-2 h-2 rounded-full" :style="statusColor(t)"></span>
-                        <span x-text="t.status_name"></span>
-                      </span>
+                      <select
+                        class="bg-panel2 border border-border2 rounded-md px-2 py-1 text-xs"
+                        :value="t.status_id"
+                        @change="patchTaskGlobal(t.id, {status_id: Number($event.target.value)})"
+                      >
+                        <template x-for="s in statusesForBoard(t.board_id)" :key="s.id">
+                          <option :value="s.id" x-text="s.name"></option>
+                        </template>
+                      </select>
                     </td>
-                    <td class="py-2 px-3" x-text="t.priority"></td>
+                    <td class="py-2 px-3">
+                      <select
+                        class="bg-panel2 border border-border2 rounded-md px-2 py-1 text-xs"
+                        :value="t.priority"
+                        @change="patchTaskGlobal(t.id, {priority: $event.target.value})"
+                      >
+                        <option value="none">none</option>
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                      </select>
+                    </td>
                     <td class="py-2 px-3">
                       <div class="flex flex-wrap gap-1">
                         <template x-for="tag in t.tags" :key="tag">
@@ -464,11 +524,18 @@
                     </td>
                     <td class="py-2 px-3 text-faint" x-text="t.due_date || '—'"></td>
                     <td class="py-2 px-3">
-                      <button
-                        @click="openTaskEdit(t)"
-                        class="text-faint hover:text-ink transition"
-                        title="Editar"
-                      >✎</button>
+                      <div class="flex items-center gap-1">
+                        <button
+                          @click="openTaskEdit(t)"
+                          class="text-faint hover:text-ink transition"
+                          title="Editar"
+                        >✎</button>
+                        <button
+                          @click="deleteMasterTask(t.id)"
+                          class="text-faint hover:text-red-400 transition"
+                          title="Eliminar"
+                        >✕</button>
+                      </div>
                     </td>
                   </tr>
                 </template>

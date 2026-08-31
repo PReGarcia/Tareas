@@ -151,6 +151,25 @@ func CreateStatus(boardID int64, name, color string) (*models.Status, error) {
 	return &s, err
 }
 
+// ListAllStatuses devuelve todos los estados de todos los tableros,
+// ordenados por tablero y posición, para poblar selectores en la Master Table.
+func ListAllStatuses() ([]models.Status, error) {
+	rows, err := DB.Query(`SELECT id, board_id, name, position, color FROM statuses ORDER BY board_id, position`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Status{}
+	for rows.Next() {
+		var s models.Status
+		if err := rows.Scan(&s.ID, &s.BoardID, &s.Name, &s.Position, &s.Color); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 // ---- Tasks ----
 
 func CreateTask(boardID, statusID int64, title, description, priority string, dueDate *string, tags []string) (*models.Task, error) {
@@ -419,7 +438,13 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 	if strings.EqualFold(f.Order, "asc") {
 		order = "ASC"
 	}
-	q += fmt.Sprintf(" ORDER BY %s %s", sortCol, order)
+	// Al ordenar por fecha, las tareas sin due_date (NULL) van siempre al final,
+	// independientemente del sentido del orden.
+	if sortCol == "t.due_date" {
+		q += fmt.Sprintf(" ORDER BY t.due_date IS NULL, %s %s", sortCol, order)
+	} else {
+		q += fmt.Sprintf(" ORDER BY %s %s", sortCol, order)
+	}
 
 	rows, err := DB.Query(q, args...)
 	if err != nil {

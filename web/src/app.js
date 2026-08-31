@@ -8,6 +8,8 @@ function app() {
     currentBoardId: null,
     viewMode: "kanban",
     sidebarOpen: true,
+    sidebarCollapsed: false,
+    sidebarHover: false,
     views: [
       { id: "kanban", label: "Kanban" },
       { id: "table", label: "Tabla" },
@@ -16,6 +18,7 @@ function app() {
     master: [],
     filters: { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" },
     tags: [],
+    statuses: [],
 
     // Modales
     showProjModal: false,
@@ -59,8 +62,13 @@ function app() {
       this.showBoardModal = false;
       this.showTaskModal = false;
       this.showRenameModal = false;
+      // Recupera el estado colapsado del sidebar (persistido en localStorage).
+      try {
+        if (localStorage.getItem("sidebarCollapsed") === "1") this.sidebarCollapsed = true;
+      } catch (e) {}
       await this.loadProjects();
       await this.loadTags();
+      await this.loadStatuses();
       if (this.projects.length) {
         await this.selectProject(this.projects[0].id);
       }
@@ -68,6 +76,14 @@ function app() {
 
     async loadTags() {
       this.tags = await this.api("/tags");
+    },
+
+    async loadStatuses() {
+      this.statuses = await this.api("/statuses");
+    },
+
+    statusesForBoard(bid) {
+      return this.statuses.filter((s) => s.board_id === bid);
     },
 
     switchView(id) {
@@ -78,6 +94,24 @@ function app() {
 
     boardsByProject(pid) {
       return this.boards.filter((b) => b.project_id === pid);
+    },
+
+    // Colapsa/despliega el sidebar (escritorio). El estado se persiste.
+    toggleSidebar() {
+      this.sidebarCollapsed = !this.sidebarCollapsed;
+      this.sidebarHover = false;
+      try {
+        localStorage.setItem("sidebarCollapsed", this.sidebarCollapsed ? "1" : "0");
+      } catch (e) {}
+    },
+
+    sidebarClasses() {
+      const mobile = this.sidebarOpen ? "translate-x-0" : "-translate-x-full";
+      if (this.sidebarCollapsed) {
+        const reveal = this.sidebarHover ? "md:translate-x-0" : "md:-translate-x-full";
+        return mobile + " md:fixed md:top-14 " + reveal;
+      }
+      return mobile + " md:static md:translate-x-0";
     },
     currentBoard() {
       return this.board.board;
@@ -97,7 +131,7 @@ function app() {
       if (f.from) tasks = tasks.filter((t) => t.due_date && t.due_date >= f.from);
       if (f.to) tasks = tasks.filter((t) => t.due_date && t.due_date <= f.to);
 
-      const col = f.sort;
+        const col = f.sort;
       const dir = f.order === "asc" ? 1 : -1;
       if (col) {
         const prio = { none: 0, low: 1, medium: 2, high: 3 };
@@ -108,8 +142,13 @@ function app() {
               av = a.title; bv = b.title; break;
             case "priority":
               av = prio[a.priority] || 0; bv = prio[b.priority] || 0; break;
-            case "due_date":
-              av = a.due_date || ""; bv = b.due_date || ""; break;
+            case "due_date": {
+              // Las tareas sin fecha van siempre al final, asc o desc.
+              const an = a.due_date ? 1 : 0;
+              const bn = b.due_date ? 1 : 0;
+              if (an !== bn) return an - bn;
+              av = a.due_date; bv = b.due_date; break;
+            }
             case "status":
               av = this.boardStatusName(a.status_id); bv = this.boardStatusName(b.status_id); break;
             default:
@@ -408,14 +447,16 @@ function app() {
       this.loadMaster();
     },
 
-    statusColor(t) {
-      const map = {
-        Backlog: "#6b7280",
-        "To Do": "#3b82f6",
-        "In Progress": "#f59e0b",
-        Done: "#22c55e",
-      };
-      return `background:${map[t.status_name] || "#6b7280"}`;
+    // Edita un campo de una tarea en la Master Table y recarga la lista.
+    async patchTaskGlobal(id, fields) {
+      await this.patchTask(id, fields);
+      await this.loadMaster();
+    },
+
+    async deleteMasterTask(id) {
+      if (!confirm("¿Eliminar esta tarea?")) return;
+      await this.api("/tasks/" + id, { method: "DELETE" });
+      await this.loadMaster();
     },
   };
 }

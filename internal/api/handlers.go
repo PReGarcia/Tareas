@@ -29,6 +29,7 @@ func Register(app *fiber.App) {
 
 	api.Get("/tasks", listTasksGlobal)
 	api.Get("/tags", listTags)
+	api.Get("/statuses", listStatuses)
 }
 
 func listProjects(c *fiber.Ctx) error {
@@ -335,4 +336,12 @@ func listTags(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(tags)
+}
+
+func listStatuses(c *fiber.Ctx) error {
+	statuses, err := db.ListAllStatuses()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(statuses)
 }
