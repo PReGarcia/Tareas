@@ -13,9 +13,13 @@ function app() {
     views: [
       { id: "kanban", label: "Kanban" },
       { id: "table", label: "Tabla" },
+      { id: "calendar", label: "Calendario" },
       { id: "master", label: "Global" },
     ],
     master: [],
+    calendar: [],
+    calYear: new Date().getFullYear(),
+    calMonth: new Date().getMonth(),
     filters: { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" },
     tags: [],
     statuses: [],
@@ -90,6 +94,93 @@ function app() {
       this.viewMode = id;
       if (id === "kanban") this.$nextTick(() => this.initSortable());
       if (id === "master") this.loadMaster();
+      if (id === "calendar") this.loadCalendar();
+    },
+
+    // ---- Calendario ----
+    async loadCalendar() {
+      this.calendar = await this.api("/tasks");
+    },
+
+    calStatusColor(sid) {
+      const s = this.statuses.find((x) => x.id === sid);
+      return s ? s.color : "#6b7280";
+    },
+
+    calMonthLabel() {
+      const meses = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+      ];
+      return meses[this.calMonth] + " " + this.calYear;
+    },
+
+    prevMonth() {
+      if (this.calMonth === 0) {
+        this.calMonth = 11;
+        this.calYear--;
+      } else {
+        this.calMonth--;
+      }
+    },
+
+    nextMonth() {
+      if (this.calMonth === 11) {
+        this.calMonth = 0;
+        this.calYear++;
+      } else {
+        this.calMonth++;
+      }
+    },
+
+    goToday() {
+      const d = new Date();
+      this.calYear = d.getFullYear();
+      this.calMonth = d.getMonth();
+    },
+
+    isoDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + day;
+    },
+
+    calWeeks() {
+      const year = this.calYear;
+      const month = this.calMonth;
+      const first = new Date(year, month, 1);
+      const startDow = (first.getDay() + 6) % 7; // 0 = lunes
+      const cursor = new Date(year, month, 1 - startDow);
+      const weeks = [];
+      const todayIso = this.isoDate(new Date());
+      for (let w = 0; w < 6; w++) {
+        const days = [];
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(cursor);
+          const iso = this.isoDate(date);
+          days.push({
+            iso,
+            day: date.getDate(),
+            inMonth: date.getMonth() === month,
+            isToday: iso === todayIso,
+            tasks: this.tasksForDate(iso),
+          });
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        weeks.push(days);
+      }
+      return weeks;
+    },
+
+    tasksForDate(iso) {
+      return this.calendar.filter(
+        (t) => t.due_date && (t.due_date || "").slice(0, 10) === iso
+      );
+    },
+
+    calTasksCount() {
+      return this.calendar.filter((t) => t.due_date).length;
     },
 
     boardsByProject(pid) {
@@ -414,6 +505,7 @@ function app() {
       });
       this.showTaskEditModal = false;
       if (this.viewMode === "master") await this.loadMaster();
+      else if (this.viewMode === "calendar") await this.loadCalendar();
       else await this.selectBoard(this.currentBoardId);
       await this.loadTags();
     },

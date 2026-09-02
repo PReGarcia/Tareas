@@ -20,7 +20,7 @@
       >
         <button
           @click="sidebarOpen=!sidebarOpen"
-          x-show="viewMode!=='master'"
+          x-show="viewMode!=='master' && viewMode!=='calendar'"
           class="md:hidden p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition shrink-0"
           title="Menú"
         >
@@ -29,7 +29,7 @@
 
         <button
           @click="toggleSidebar()"
-          x-show="viewMode!=='master'"
+          x-show="viewMode!=='master' && viewMode!=='calendar'"
           class="hidden md:inline-flex p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition shrink-0"
           :title="sidebarCollapsed ? 'Mostrar sidebar' : 'Ocultar sidebar'"
         >
@@ -77,14 +77,14 @@
       <div class="flex flex-1 min-h-0">
         <!-- Backdrop móvil para el sidebar -->
         <div
-          x-show="sidebarOpen && viewMode!=='master'"
+          x-show="sidebarOpen && viewMode!=='master' && viewMode!=='calendar'"
           @click="sidebarOpen=false"
           class="fixed inset-0 bg-black/50 z-30 md:hidden"
         ></div>
 
         <!-- Zona de hover para revelar el sidebar cuando está colapsado (solo escritorio) -->
         <div
-          x-show="sidebarCollapsed && viewMode!=='master'"
+          x-show="sidebarCollapsed && viewMode!=='master' && viewMode!=='calendar'"
           @mouseenter="sidebarHover=true"
           @mouseleave="sidebarHover=false"
           class="hidden md:block fixed inset-y-0 left-0 z-30 w-4 cursor-pointer"
@@ -96,7 +96,7 @@
           :class="sidebarClasses()"
           @mouseenter="sidebarHover=true"
           @mouseleave="sidebarHover=false"
-          x-show="viewMode!=='master'"
+          x-show="viewMode!=='master' && viewMode!=='calendar'"
         >
           <div class="px-2 text-xs uppercase tracking-wider text-faint mb-2">Proyectos</div>
           <template x-for="p in projects" :key="p.id">
@@ -159,7 +159,7 @@
           <!-- Título del tablero -->
           <div
             class="h-auto shrink-0 flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-0 border-b border-border"
-            x-show="viewMode!=='master'"
+            x-show="viewMode!=='master' && viewMode!=='calendar'"
           >
             <h1 class="font-medium truncate" x-text="currentBoard()?.name || 'Sin tablero'"></h1>
             <span class="text-xs text-faint" x-text="boardTaskCount() + ' tareas'"></span>
@@ -543,6 +543,75 @@
             </table>
             <div x-show="!master.length" class="p-8 text-center text-faint text-sm">
               No hay tareas que coincidan con los filtros.
+            </div>
+          </div>
+
+          <!-- Vista Calendario -->
+          <div x-show="viewMode==='calendar'" class="flex-1 overflow-auto flex flex-col">
+            <!-- Barra de navegación del mes -->
+            <div class="shrink-0 flex items-center gap-1 p-4 border-b border-border">
+              <button
+                @click="prevMonth()"
+                class="p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition"
+                title="Mes anterior"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div class="font-medium min-w-[150px] text-center" x-text="calMonthLabel()"></div>
+              <button
+                @click="nextMonth()"
+                class="p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition"
+                title="Mes siguiente"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button
+                @click="goToday()"
+                class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted ml-1"
+              >Hoy</button>
+              <span class="ml-auto text-xs text-faint" x-text="calTasksCount() + ' tareas con fecha'"></span>
+            </div>
+
+            <!-- Grid del mes -->
+            <div class="p-4">
+              <div class="grid grid-cols-7 gap-px bg-border rounded-xl2 overflow-hidden border border-border">
+                <template x-for="wd in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']" :key="wd">
+                  <div class="bg-panel py-2 text-center text-xs uppercase tracking-wider text-faint" x-text="wd"></div>
+                </template>
+                <template x-for="week in calWeeks()" :key="week[0].iso">
+                  <template x-for="cell in week" :key="cell.iso">
+                    <div
+                      class="bg-panel min-h-[112px] p-1.5 flex flex-col gap-1"
+                      :class="cell.inMonth ? '' : 'opacity-40'"
+                    >
+                      <div class="flex items-center justify-between">
+                        <span
+                          class="text-xs text-faint"
+                          :class="cell.isToday ? 'text-accent2 font-semibold' : ''"
+                          x-text="cell.day"
+                        ></span>
+                        <span x-show="cell.isToday" class="text-[9px] px-1 rounded bg-accent/20 text-accent2">Hoy</span>
+                      </div>
+                      <template x-for="t in cell.tasks" :key="t.id">
+                        <button
+                          @click="openTaskEdit(t)"
+                          class="text-left text-[11px] leading-tight rounded px-1.5 py-1 truncate border border-border2 bg-panel2 hover:border-accent/50 transition"
+                          :title="t.title"
+                        >
+                          <span
+                            class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle"
+                            :style="`background:${calStatusColor(t.status_id)}`"
+                          ></span>
+                          <span x-text="t.title"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </template>
+                </template>
+              </div>
+              <div x-show="!calendar.length" class="p-8 text-center text-faint text-sm">
+                No hay tareas.
+              </div>
             </div>
           </div>
         </main>
