@@ -20,6 +20,7 @@ function app() {
     calendar: [],
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
+    calFilter: { project: "", board: "" },
     filters: { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" },
     tags: [],
     statuses: [],
@@ -99,7 +100,30 @@ function app() {
 
     // ---- Calendario ----
     async loadCalendar() {
-      this.calendar = await this.api("/tasks");
+      const q = new URLSearchParams();
+      if (this.calFilter.project) q.set("project", this.calFilter.project);
+      if (this.calFilter.board) q.set("board", this.calFilter.board);
+      this.calendar = await this.api("/tasks?" + q.toString());
+    },
+
+    // Tableros disponibles para el filtro: los del proyecto elegido (o todos).
+    calBoardOptions() {
+      if (!this.calFilter.project) return this.boards;
+      const p = this.projects.find((x) => x.name === this.calFilter.project);
+      if (!p) return this.boards;
+      return this.boardsByProject(p.id);
+    },
+
+    onCalProjectChange() {
+      // Al cambiar de proyecto se reinicia el filtro de tablero para evitar
+      // seleccionar un tablero que no pertenece al proyecto activo.
+      this.calFilter.board = "";
+      this.loadCalendar();
+    },
+
+    resetCalFilters() {
+      this.calFilter = { project: "", board: "" };
+      this.loadCalendar();
     },
 
     calStatusColor(sid) {

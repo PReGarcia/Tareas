@@ -62,6 +62,7 @@ type TaskFilters struct {
 	Status   string
 	Priority string
 	Project  string
+	Board    string
 	Tag      string
 	From     string
 	To       string

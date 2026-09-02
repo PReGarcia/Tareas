@@ -317,6 +317,7 @@ func listTasksGlobal(c *fiber.Ctx) error {
 		Status:   c.Query("status"),
 		Priority: c.Query("priority"),
 		Project:  c.Query("project"),
+		Board:    c.Query("board"),
 		Tag:      c.Query("tag"),
 		From:     c.Query("from"),
 		To:       c.Query("to"),

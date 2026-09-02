@@ -396,6 +396,10 @@ func ListTasksGlobal(f models.TaskFilters) ([]models.TaskRow, error) {
 		where = append(where, "p.name = ?")
 		args = append(args, f.Project)
 	}
+	if f.Board != "" {
+		where = append(where, "t.board_id = ?")
+		args = append(args, f.Board)
+	}
 	if f.Tag != "" {
 		// Las etiquetas se guardan como JSON array en TEXT; buscamos la etiqueta
 		// entrecomillada para evitar coincidencias parciales ("urgent" vs "urgently").

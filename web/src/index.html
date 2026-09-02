@@ -569,7 +569,27 @@
                 @click="goToday()"
                 class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted ml-1"
               >Hoy</button>
-              <span class="ml-auto text-xs text-faint" x-text="calTasksCount() + ' tareas con fecha'"></span>
+              <div class="ml-auto flex items-center gap-2">
+                <select x-model="calFilter.project" @change="onCalProjectChange()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todos los proyectos</option>
+                  <template x-for="p in projects" :key="p.id">
+                    <option :value="p.name" x-text="p.name"></option>
+                  </template>
+                </select>
+                <select x-model="calFilter.board" @change="loadCalendar()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todos los tableros</option>
+                  <template x-for="b in calBoardOptions()" :key="b.id">
+                    <option :value="b.id" x-text="b.name"></option>
+                  </template>
+                </select>
+                <button
+                  x-show="calFilter.project || calFilter.board"
+                  @click="resetCalFilters()"
+                  class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted"
+                  title="Limpiar filtros"
+                >Limpiar</button>
+                <span class="text-xs text-faint whitespace-nowrap" x-text="calTasksCount() + ' tareas con fecha'"></span>
+              </div>
             </div>
 
             <!-- Grid del mes -->
