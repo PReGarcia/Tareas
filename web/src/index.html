@@ -582,8 +582,14 @@
                     <option :value="b.id" x-text="b.name"></option>
                   </template>
                 </select>
+                <select x-model="calFilter.tag" @change="loadCalendar()" class="bg-panel2 border border-border2 rounded-md px-2 py-1.5 text-sm">
+                  <option value="">Todas las etiquetas</option>
+                  <template x-for="tag in tags" :key="tag">
+                    <option :value="tag" x-text="tag"></option>
+                  </template>
+                </select>
                 <button
-                  x-show="calFilter.project || calFilter.board"
+                  x-show="calFilter.project || calFilter.board || calFilter.tag"
                   @click="resetCalFilters()"
                   class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted"
                   title="Limpiar filtros"

@@ -20,7 +20,7 @@ function app() {
     calendar: [],
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
-    calFilter: { project: "", board: "" },
+    calFilter: { project: "", board: "", tag: "" },
     filters: { status: "", priority: "", project: "", tag: "", from: "", to: "", sort: "", order: "desc" },
     tags: [],
     statuses: [],
@@ -103,6 +103,7 @@ function app() {
       const q = new URLSearchParams();
       if (this.calFilter.project) q.set("project", this.calFilter.project);
       if (this.calFilter.board) q.set("board", this.calFilter.board);
+      if (this.calFilter.tag) q.set("tag", this.calFilter.tag);
       this.calendar = await this.api("/tasks?" + q.toString());
     },
 
@@ -122,7 +123,7 @@ function app() {
     },
 
     resetCalFilters() {
-      this.calFilter = { project: "", board: "" };
+      this.calFilter = { project: "", board: "", tag: "" };
       this.loadCalendar();
     },
 
