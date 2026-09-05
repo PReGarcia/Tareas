@@ -91,11 +91,19 @@ function app() {
       return this.statuses.filter((s) => s.board_id === bid);
     },
 
-    switchView(id) {
+    // Al cambiar de vista se recarga SIEMPRE la fuente de datos correspondiente
+    // para garantizar que el estado (columnas, estado de las tareas, etc.) refleje
+    // la realidad y no quede desactualizado tras cambios hechos en otra vista.
+    async switchView(id) {
       this.viewMode = id;
-      if (id === "kanban") this.$nextTick(() => this.initSortable());
-      if (id === "master") this.loadMaster();
-      if (id === "calendar") this.loadCalendar();
+      if (id === "kanban" || id === "table") {
+        // El tablero alimenta tanto al Kanban como a la vista de Tabla.
+        await this.reloadBoard();
+      } else if (id === "master") {
+        await this.loadMaster();
+      } else if (id === "calendar") {
+        await this.loadCalendar();
+      }
     },
 
     // ---- Calendario ----
@@ -335,8 +343,18 @@ function app() {
 
     async selectBoard(bid) {
       this.currentBoardId = bid;
-      this.board = await this.api("/boards/" + bid);
+      await this.reloadBoard();
       this.sidebarOpen = false;
+    },
+
+    // Recarga el tablero actual (columnas y tareas) desde el servidor y
+    // reinicializa el drag & drop si estamos en la vista Kanban.
+    async reloadBoard() {
+      if (!this.currentBoardId) {
+        this.board = { board: {}, columns: [] };
+        return;
+      }
+      this.board = await this.api("/boards/" + this.currentBoardId);
       if (this.viewMode === "kanban") this.$nextTick(() => this.initSortable());
     },
 
@@ -532,6 +550,8 @@ function app() {
       if (this.viewMode === "master") await this.loadMaster();
       else if (this.viewMode === "calendar") await this.loadCalendar();
       else await this.selectBoard(this.currentBoardId);
+      // Mantiene el Kanban sincronizado aunque se edite desde otra vista.
+      await this.reloadBoard();
       await this.loadTags();
     },
 
@@ -568,12 +588,15 @@ function app() {
     async patchTaskGlobal(id, fields) {
       await this.patchTask(id, fields);
       await this.loadMaster();
+      // Sincroniza el Kanban por si se cambió el estado de una tarea.
+      await this.reloadBoard();
     },
 
     async deleteMasterTask(id) {
       if (!confirm("¿Eliminar esta tarea?")) return;
       await this.api("/tasks/" + id, { method: "DELETE" });
       await this.loadMaster();
+      await this.reloadBoard();
     },
   };
 }
