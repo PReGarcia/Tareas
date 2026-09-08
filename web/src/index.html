@@ -607,7 +607,8 @@
                 <template x-for="week in calWeeks()" :key="week[0].iso">
                   <template x-for="cell in week" :key="cell.iso">
                     <div
-                      class="bg-panel min-h-[112px] p-1.5 flex flex-col gap-1"
+                      @click="openDay(cell.iso)"
+                      class="bg-panel min-h-[112px] p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-panel2/40 transition"
                       :class="cell.inMonth ? '' : 'opacity-40'"
                     >
                       <div class="flex items-center justify-between">
@@ -620,7 +621,7 @@
                       </div>
                       <template x-for="t in cell.tasks" :key="t.id">
                         <button
-                          @click="openTaskEdit(t)"
+                          @click.stop="openTaskEdit(t)"
                           class="text-left text-[11px] leading-tight rounded px-1.5 py-1 truncate border border-border2 bg-panel2 hover:border-accent/50 transition"
                           :title="t.title"
                         >
@@ -637,6 +638,53 @@
               </div>
               <div x-show="!calendar.length" class="p-8 text-center text-faint text-sm">
                 No hay tareas.
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal de día (tareas de una fecha) -->
+          <div
+            x-show="showDayModal"
+            @click.self="closeDayModal()"
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          >
+            <div class="w-[92vw] max-w-md max-h-[80vh] flex flex-col bg-panel border border-border2 rounded-xl2 p-4 card-shadow">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-xs uppercase tracking-wider text-accent2 mb-1">Tareas del día</div>
+                  <div class="font-medium" x-text="dayModalLabel()"></div>
+                </div>
+                <button
+                  @click="closeDayModal()"
+                  class="p-1.5 rounded-md text-muted hover:text-ink hover:bg-panel2 transition"
+                  title="Cerrar"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div class="overflow-auto flex-1 -mx-1 px-1 flex flex-col gap-2">
+                <template x-for="t in dayModalTasks" :key="t.id">
+                  <button
+                    @click="openTaskEdit(t); closeDayModal()"
+                    class="text-left rounded-lg px-3 py-2 border border-border2 bg-panel2 hover:border-accent/50 transition flex items-start gap-2"
+                  >
+                    <span
+                      class="mt-1.5 inline-block w-2 h-2 shrink-0 rounded-full"
+                      :style="`background:${calStatusColor(t.status_id)}`"
+                    ></span>
+                    <span class="min-w-0">
+                      <span class="block text-sm truncate" x-text="t.title"></span>
+                      <span
+                        x-show="t.tags && t.tags.length"
+                        class="block text-[11px] text-faint truncate"
+                        x-text="t.tags.join(', ')"
+                      ></span>
+                    </span>
+                  </button>
+                </template>
+                <div x-show="!dayModalTasks.length" class="p-6 text-center text-faint text-sm">
+                  No hay tareas para este día.
+                </div>
               </div>
             </div>
           </div>

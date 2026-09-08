@@ -35,6 +35,9 @@ function app() {
     renameName: "",
     showTaskEditModal: false,
     editTask: { id: null, title: "", description: "", priority: "none", dueDate: "", statusId: null, tags: "" },
+    showDayModal: false,
+    dayModalIso: "",
+    dayModalTasks: [],
     projName: "",
     boardName: "",
     taskTitle: "",
@@ -214,6 +217,29 @@ function app() {
 
     calTasksCount() {
       return this.calendar.filter((t) => t.due_date).length;
+    },
+
+    // ---- Modal de día (click en una celda del calendario) ----
+    openDay(iso) {
+      this.dayModalIso = iso;
+      this.dayModalTasks = this.tasksForDate(iso);
+      this.showDayModal = true;
+    },
+
+    closeDayModal() {
+      this.showDayModal = false;
+    },
+
+    dayModalLabel() {
+      if (!this.dayModalIso) return "";
+      const [y, m, d] = this.dayModalIso.split("-").map(Number);
+      const meses = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+      ];
+      const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+      const fecha = new Date(y, m - 1, d);
+      return dias[(fecha.getDay() + 6) % 7] + ", " + d + " de " + meses[m - 1] + " de " + y;
     },
 
     boardsByProject(pid) {
@@ -516,6 +542,7 @@ function app() {
       this.showTaskModal = false;
       this.showRenameModal = false;
       this.showTaskEditModal = false;
+      this.showDayModal = false;
     },
 
     // ---- Editar tarea ----
