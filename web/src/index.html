@@ -459,7 +459,7 @@
               <button @click="resetFilters()" class="px-3 py-1.5 text-sm rounded-lg border border-border2 hover:bg-panel2 text-muted">
                 Limpiar
               </button>
-              <span class="ml-auto text-xs text-faint" x-text="master.length + ' tareas'"></span>
+              <span class="ml-auto text-xs text-faint" x-text="filteredMaster().length + ' tareas'"></span>
             </div>
 
             <!-- Tabla -->
@@ -485,7 +485,7 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="t in master" :key="t.id">
+                <template x-for="t in filteredMaster()" :key="t.id">
                   <tr class="border-b border-border/60 hover:bg-panel2/40">
                     <td class="py-2 px-3 text-ink" x-text="t.title"></td>
                     <td class="py-2 px-3 text-muted" x-text="t.project_name"></td>

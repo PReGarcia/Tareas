@@ -277,6 +277,7 @@ function app() {
       const f = this.boardFilter;
       if (f.tag) tasks = tasks.filter((t) => (t.tags || []).includes(f.tag));
       if (f.status) tasks = tasks.filter((t) => this.boardStatusName(t.status_id) === f.status);
+      else tasks = tasks.filter((t) => this.boardStatusName(t.status_id) !== "Done");
       if (f.priority) tasks = tasks.filter((t) => t.priority === f.priority);
       if (f.from) tasks = tasks.filter((t) => t.due_date && t.due_date >= f.from);
       if (f.to) tasks = tasks.filter((t) => t.due_date && t.due_date <= f.to);
@@ -594,6 +595,13 @@ function app() {
       if (this.filters.sort) q.set("sort", this.filters.sort);
       if (this.filters.order) q.set("order", this.filters.order);
       this.master = await this.api("/tasks?" + q.toString());
+    },
+
+    filteredMaster() {
+      let tasks = this.master;
+      if (!this.filters.status)
+        tasks = tasks.filter((t) => (t.status_name || "") !== "Done");
+      return tasks;
     },
 
     sortBy(col) {
