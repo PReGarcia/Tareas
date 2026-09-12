@@ -765,10 +765,17 @@
                <option value="medium">medium</option>
                <option value="high">high</option>
              </select>
-             <input type="date" x-model="taskDue" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
-           </div>
-           <input
-             x-model="taskTags"
+              <input type="date" x-model="taskDue" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+                <button
+                  type="button"
+                  x-show="taskDue"
+                  @click="taskDue = ''"
+                  class="px-2 py-2 text-xs rounded-md border border-border2 text-muted hover:text-red-400 hover:border-red-400/40 transition"
+                  title="Quitar fecha"
+                >Quitar fecha</button>
+            </div>
+            <input
+              x-model="taskTags"
              placeholder="Etiquetas (separadas por coma)"
              class="w-full bg-panel2 border border-border2 rounded-md px-3 py-2 text-sm mb-3 outline-none focus:border-accent"
            />
@@ -806,8 +813,15 @@
                <option value="medium">medium</option>
                <option value="high">high</option>
              </select>
-             <input type="date" x-model="editTask.dueDate" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
-           </div>
+              <input type="date" x-model="editTask.dueDate" class="bg-panel2 border border-border2 rounded-md px-2 py-2 text-sm text-ink" />
+                <button
+                  type="button"
+                  x-show="editTask.dueDate"
+                  @click="editTask.dueDate = ''"
+                  class="px-2 py-2 text-xs rounded-md border border-border2 text-muted hover:text-red-400 hover:border-red-400/40 transition"
+                  title="Quitar fecha"
+                >Quitar fecha</button>
+            </div>
            <input
              x-model="editTask.tags"
              placeholder="Etiquetas (separadas por coma)"

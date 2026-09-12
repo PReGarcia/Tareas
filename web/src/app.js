@@ -371,6 +371,12 @@ function app() {
     async selectBoard(bid) {
       this.currentBoardId = bid;
       await this.reloadBoard();
+      // El estado por defecto del modal de nueva tarea debe pertenecer al
+      // tablero activo; si no se reinicia, se reusaría el status_id de un
+      // tablero anterior y la tarea quedaría "huérfana" (no aparece en Kanban/Tabla).
+      this.taskStatus = this.board.columns.length
+        ? this.board.columns[0].status.id
+        : null;
       this.sidebarOpen = false;
     },
 
@@ -442,12 +448,22 @@ function app() {
 
     async createTask() {
       if (!this.taskTitle.trim() || !this.currentBoardId) return;
-      if (!this.taskStatus && this.board.columns.length)
-        this.taskStatus = this.board.columns[0].status.id;
+      // Garantiza que el status_id pertenezca al tablero actual. Si taskStatus
+      // es de otro tablero (valor persistido de una creación previa) se usa el
+      // primer estado del tablero activo en su lugar.
+      const colForStatus = this.board.columns.find(
+        (c) => c.status.id === Number(this.taskStatus)
+      );
+      const statusID = colForStatus
+        ? colForStatus.status.id
+        : this.board.columns.length
+        ? this.board.columns[0].status.id
+        : null;
+      if (!statusID) return;
       const body = {
         title: this.taskTitle.trim(),
         description: this.taskDesc,
-        status_id: Number(this.taskStatus),
+        status_id: Number(statusID),
         priority: this.taskPriority,
         tags: this.parseTags(this.taskTags),
       };
@@ -557,6 +573,13 @@ function app() {
         statusId: task.status_id,
         tags: (task.tags || []).join(", "),
       };
+      // Si la tarea tiene un status_id que no pertenece a su tablero (tarea
+      // huérfana), se usa el primer estado válido para que el selector muestre
+      // una opción correcta y se pueda reparar al guardar.
+      const col = this.board.columns.find((c) => c.status.id === this.editTask.statusId);
+      if (!col && this.board.columns.length) {
+        this.editTask.statusId = this.board.columns[0].status.id;
+      }
       this.showTaskEditModal = true;
     },
 
