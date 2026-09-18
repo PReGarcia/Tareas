@@ -217,12 +217,12 @@
           <!-- Vista Kanban -->
           <div
             x-show="viewMode==='kanban'"
-            class="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-4"
+            class="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-4 flex"
           >
-            <div class="flex gap-4 items-start h-full" x-show="currentBoardId">
+            <div class="flex gap-4 items-start h-full min-h-0" x-show="currentBoardId">
               <template x-for="col in board.columns" :key="col.status.id">
                 <div
-                  class="w-72 shrink-0 flex flex-col bg-panel/60 border border-border rounded-xl2 max-h-full"
+                  class="w-72 shrink-0 flex flex-col bg-panel/60 border border-border rounded-xl2 max-h-full min-h-0"
                 >
                   <div
                     class="flex items-center gap-2 px-3 py-2.5 border-b border-border"
@@ -575,7 +575,7 @@
           </div>
 
           <!-- Vista Calendario -->
-          <div x-show="viewMode==='calendar'" class="flex-1 overflow-auto flex flex-col">
+          <div x-show="viewMode==='calendar'" class="flex-1 min-h-0 overflow-auto flex flex-col">
             <!-- Barra de navegación del mes -->
             <div class="shrink-0 flex items-center gap-1 p-4 border-b border-border">
               <button
@@ -626,12 +626,16 @@
               </div>
             </div>
 
-            <!-- Grid del mes -->
+            <!-- Grid del mes: cabecera y días en dos grids separados (un único
+                 x-for por grid) para evitar que Alpine reordene los <template>
+                 hermanos al recargar y descuadre las columnas. -->
             <div class="p-4">
-              <div class="grid grid-cols-7 gap-px bg-border rounded-xl2 overflow-hidden border border-border">
+              <div class="grid grid-cols-7 gap-px bg-border rounded-t-xl2 overflow-hidden border border-border border-b-0">
                 <template x-for="wd in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']" :key="wd">
                   <div class="bg-panel py-2 text-center text-xs uppercase tracking-wider text-faint" x-text="wd"></div>
                 </template>
+              </div>
+              <div class="grid grid-cols-7 gap-px bg-border rounded-b-xl2 overflow-hidden border border-border">
                 <template x-for="cell in calCells()" :key="cell.iso">
                   <div
                     @click="openDay(cell.iso)"

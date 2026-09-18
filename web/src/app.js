@@ -413,11 +413,22 @@ function app() {
         this.board = { board: {}, columns: [] };
         return;
       }
+      // Destruye las instancias de Sortable de forma síncrona ANTES de que
+      // Alpine reemplace el DOM del tablero. Si se hace en el $nextTick (como
+      // hace initSortable) la animación del drag puede seguir ejecutándose sobre
+      // un nodo ya eliminado y Sortable lanza "Cannot read properties of null".
+      if (this.viewMode === "kanban") {
+        this._sortables.forEach((s) => s.destroy());
+        this._sortables = [];
+      }
       this.board = await this.api("/boards/" + this.currentBoardId);
       if (this.viewMode === "kanban") this.$nextTick(() => this.initSortable());
     },
 
     // ---- Drag & Drop (SortableJS) ----
+    // Nota: SortableJS (vendor parcheado en web/src/vendor) lleva una guarda
+    // null que evita el error "Cannot read properties of null (reading
+    // 'lastElementChild')" que disparaba con un dragover obsoleto al soltar.
     initSortable() {
       // Limpia instancias previas
       this._sortables.forEach((s) => s.destroy());

@@ -27,13 +27,19 @@ execFileSync(
 cp(path.join(root, "src", "app.js"), path.join(dist, "assets", "app.js"));
 
 // 3b) Librerías vendor (offline / self-hosted)
+// SortableJS se vende localmente (web/src/vendor) porque lleva un parche de
+// guarda null para evitar el error "Cannot read properties of null (reading
+// 'lastElementChild')" que Sortable dispara con un dragover obsoleto al soltar.
 const vendor = {
   "htmx.org/dist/htmx.min.js": "assets/vendor/htmx.min.js",
   "alpinejs/dist/cdn.min.js": "assets/vendor/alpine.min.js",
-  "sortablejs/Sortable.min.js": "assets/vendor/sortable.min.js",
+  "src/vendor/sortable.min.js": "assets/vendor/sortable.min.js",
 };
 for (const [srcRel, destRel] of Object.entries(vendor)) {
-  const src = path.join(root, "node_modules", ...srcRel.split("/"));
+  // Las rutas bajo "src/" se resuelven respecto a la raíz del proyecto (vendor
+  // parcheado localmente); el resto se toma de node_modules.
+  const base = srcRel.startsWith("src/") ? root : path.join(root, "node_modules");
+  const src = path.join(base, ...srcRel.split("/"));
   if (fs.existsSync(src)) cp(src, path.join(dist, destRel));
   else console.warn("vendor no encontrado:", srcRel);
 }
