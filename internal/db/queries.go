@@ -34,6 +34,30 @@ func scanTags(s sql.NullString) []string {
 	return out
 }
 
+// MarshalDays serializa los días (array de ints) a JSON para guardarlos en TEXT.
+func MarshalDays(days []int) string {
+	if len(days) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(days)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+// scanDays deserializa el JSON de días guardado en TEXT.
+func scanDays(s sql.NullString) []int {
+	if !s.Valid || s.String == "" {
+		return []int{}
+	}
+	var out []int
+	if err := json.Unmarshal([]byte(s.String), &out); err != nil || out == nil {
+		return []int{}
+	}
+	return out
+}
+
 // ---- Projects ----
 
 func CreateProject(name string) (*models.Project, error) {
@@ -506,4 +530,76 @@ func ListAllTags() ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// ---- Horarios (franjas semanales) ----
+
+func CreateSchedule(subject string, days []int, room, color, start, end string) (*models.Schedule, error) {
+	res, err := DB.Exec(`INSERT INTO schedules(subject, days, room, color, start_time, end_time)
+		VALUES(?,?,?,?,?,?)`, subject, MarshalDays(days), room, color, start, end)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := res.LastInsertId()
+	return GetSchedule(id)
+}
+
+func GetSchedule(id int64) (*models.Schedule, error) {
+	var s models.Schedule
+	var daysJSON sql.NullString
+	err := DB.QueryRow(`SELECT id, subject, days, room, color, start_time, end_time, created_at
+		FROM schedules WHERE id=?`, id).
+		Scan(&s.ID, &s.Subject, &daysJSON, &s.Room, &s.Color, &s.StartTime, &s.EndTime, &s.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.Days = scanDays(daysJSON)
+	return &s, nil
+}
+
+func ListSchedules() ([]models.Schedule, error) {
+	rows, err := DB.Query(`SELECT id, subject, days, room, color, start_time, end_time, created_at
+		FROM schedules ORDER BY start_time, subject`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Schedule{}
+	for rows.Next() {
+		var s models.Schedule
+		var daysJSON sql.NullString
+		if err := rows.Scan(&s.ID, &s.Subject, &daysJSON, &s.Room, &s.Color, &s.StartTime, &s.EndTime, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		s.Days = scanDays(daysJSON)
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// UpdateSchedule aplica los campos no-nulos del mapa (edición de una franja).
+func UpdateSchedule(id int64, fields map[string]interface{}) (*models.Schedule, error) {
+	if len(fields) == 0 {
+		return GetSchedule(id)
+	}
+	set := []string{}
+	args := []interface{}{}
+	for col, val := range fields {
+		set = append(set, col+" = ?")
+		args = append(args, val)
+	}
+	args = append(args, id)
+	q := fmt.Sprintf(`UPDATE schedules SET %s WHERE id = ?`, strings.Join(set, ", "))
+	if _, err := DB.Exec(q, args...); err != nil {
+		return nil, err
+	}
+	return GetSchedule(id)
+}
+
+func DeleteSchedule(id int64) error {
+	_, err := DB.Exec(`DELETE FROM schedules WHERE id=?`, id)
+	return err
 }

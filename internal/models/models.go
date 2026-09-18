@@ -57,6 +57,18 @@ type TaskRow struct {
 	StatusName  string `json:"status_name"`
 }
 
+// Schedule es una franja horaria de una asignatura (clase) en el horario semanal.
+type Schedule struct {
+	ID        int64     `json:"id"`
+	Subject   string    `json:"subject"`
+	Days      []int     `json:"days"` // 1=Lun ... 7=Dom
+	Room      string    `json:"room"`
+	Color     string    `json:"color"`
+	StartTime string    `json:"start_time"` // "HH:MM"
+	EndTime   string    `json:"end_time"`   // "HH:MM"
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // TaskFilters son los filtros combinables de la Master Table.
 type TaskFilters struct {
 	Status   string

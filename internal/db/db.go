@@ -78,6 +78,17 @@ func migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_boards_project ON boards(project_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_statuses_board ON statuses(board_id)`,
+		`CREATE TABLE IF NOT EXISTS schedules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			subject TEXT NOT NULL,
+			days TEXT NOT NULL DEFAULT '[]',
+			room TEXT NOT NULL DEFAULT '',
+			color TEXT NOT NULL DEFAULT '#3b82f6',
+			start_time TEXT NOT NULL DEFAULT '08:00',
+			end_time TEXT NOT NULL DEFAULT '09:00',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_schedules_start ON schedules(start_time)`,
 	}
 	for _, s := range stmts {
 		if _, err := DB.Exec(s); err != nil {

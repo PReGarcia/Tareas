@@ -15,9 +15,12 @@ function app() {
       { id: "table", label: "Tabla" },
       { id: "calendar", label: "Calendario" },
       { id: "master", label: "Global" },
+      { id: "horarios", label: "Horarios" },
     ],
     master: [],
     calendar: [],
+    schedules: [],
+    dayLabels: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
     calFilter: { project: "", board: "", tag: "" },
@@ -46,6 +49,18 @@ function app() {
     taskPriority: "none",
     taskDue: "",
     taskTags: "",
+
+    // Modal Horario
+    showSchedModal: false,
+    editSchedId: null,
+    schSubject: "",
+    schDays: [],
+    schRoom: "",
+    schColor: "#3b82f6",
+    schStart: "08:00",
+    schEnd: "09:00",
+    schedColorPresets: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#64748b"],
+    horarioDay: ((new Date().getDay() + 6) % 7) + 1,
 
     // Filtro de la vista de tabla por tablero (espejo de los filtros globales)
     boardFilter: { status: "", priority: "", tag: "", from: "", to: "", sort: "", order: "desc" },
@@ -77,6 +92,7 @@ function app() {
       await this.loadProjects();
       await this.loadTags();
       await this.loadStatuses();
+      await this.loadSchedules();
       if (this.projects.length) {
         await this.selectProject(this.projects[0].id);
       }
@@ -106,6 +122,8 @@ function app() {
         await this.loadMaster();
       } else if (id === "calendar") {
         await this.loadCalendar();
+      } else if (id === "horarios") {
+        await this.loadSchedules();
       }
     },
 
@@ -209,6 +227,11 @@ function app() {
       return weeks;
     },
 
+    // Celdas aplanadas (42) para evitar x-for anidados en el grid.
+    calCells() {
+      return this.calWeeks().flat();
+    },
+
     tasksForDate(iso) {
       return this.calendar.filter(
         (t) => t.due_date && (t.due_date || "").slice(0, 10) === iso
@@ -265,6 +288,9 @@ function app() {
     },
     currentBoard() {
       return this.board.board;
+    },
+    isProjectView() {
+      return ["kanban", "table", "calendar", "master"].includes(this.viewMode);
     },
     boardTaskCount() {
       return this.board.columns.reduce((n, c) => n + c.tasks.length, 0);
@@ -560,6 +586,78 @@ function app() {
       this.showRenameModal = false;
       this.showTaskEditModal = false;
       this.showDayModal = false;
+      this.showSchedModal = false;
+    },
+
+    // ---- Horarios ----
+    async loadSchedules() {
+      this.schedules = await this.api("/schedules");
+    },
+
+    openSchedModal() {
+      this.editSchedId = null;
+      this.schSubject = "";
+      this.schDays = [];
+      this.schRoom = "";
+      this.schColor = "#3b82f6";
+      this.schStart = "08:00";
+      this.schEnd = "09:00";
+      this.showSchedModal = true;
+    },
+
+    openSchedEdit(s) {
+      this.editSchedId = s.id;
+      this.schSubject = s.subject;
+      this.schDays = s.days.slice();
+      this.schRoom = s.room || "";
+      this.schColor = s.color || "#3b82f6";
+      this.schStart = s.start_time;
+      this.schEnd = s.end_time;
+      this.showSchedModal = true;
+    },
+
+    toggleSchedDay(d) {
+      const i = this.schDays.indexOf(d);
+      if (i === -1) this.schDays.push(d);
+      else this.schDays.splice(i, 1);
+      this.schDays.sort((a, b) => a - b);
+    },
+
+    async saveSchedEdit() {
+      if (!this.schSubject.trim() || !this.schDays.length) return;
+      if (this.schEnd <= this.schStart) return;
+      const body = {
+        subject: this.schSubject.trim(),
+        days: this.schDays,
+        room: this.schRoom.trim(),
+        color: this.schColor,
+        start_time: this.schStart,
+        end_time: this.schEnd,
+      };
+      if (this.editSchedId) {
+        await this.api("/schedules/" + this.editSchedId, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      } else {
+        await this.api("/schedules", { method: "POST", body: JSON.stringify(body) });
+      }
+      this.showSchedModal = false;
+      await this.loadSchedules();
+    },
+
+    async deleteSchedule(id) {
+      if (!confirm("¿Eliminar este horario?")) return;
+      await this.api("/schedules/" + id, { method: "DELETE" });
+      await this.loadSchedules();
+    },
+
+    // Devuelve las franjas del día seleccionado, ordenadas por hora de inicio.
+    schedulesForDay(day) {
+      return this.schedules
+        .filter((s) => s.days.includes(day))
+        .slice()
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
     },
 
     // ---- Editar tarea ----

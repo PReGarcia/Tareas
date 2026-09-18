@@ -30,6 +30,11 @@ func Register(app *fiber.App) {
 	api.Get("/tasks", listTasksGlobal)
 	api.Get("/tags", listTags)
 	api.Get("/statuses", listStatuses)
+
+	api.Get("/schedules", listSchedules)
+	api.Post("/schedules", createSchedule)
+	api.Patch("/schedules/:id", updateSchedule)
+	api.Delete("/schedules/:id", deleteSchedule)
 }
 
 func listProjects(c *fiber.Ctx) error {
@@ -345,4 +350,101 @@ func listStatuses(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(statuses)
+}
+
+// ---- Horarios ----
+
+func listSchedules(c *fiber.Ctx) error {
+	schedules, err := db.ListSchedules()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(schedules)
+}
+
+func createSchedule(c *fiber.Ctx) error {
+	var body struct {
+		Subject   string `json:"subject"`
+		Days      []int  `json:"days"`
+		Room      string `json:"room"`
+		Color     string `json:"color"`
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.Subject == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "subject requerido")
+	}
+	if len(body.Days) == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "days requerido")
+	}
+	if body.StartTime == "" {
+		body.StartTime = "08:00"
+	}
+	if body.EndTime == "" {
+		body.EndTime = "09:00"
+	}
+	if body.Color == "" {
+		body.Color = "#3b82f6"
+	}
+	s, err := db.CreateSchedule(body.Subject, body.Days, body.Room, body.Color, body.StartTime, body.EndTime)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.Status(fiber.StatusCreated).JSON(s)
+}
+
+func updateSchedule(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "id inválido")
+	}
+	var body struct {
+		Subject   *string `json:"subject"`
+		Days      []int   `json:"days"`
+		Room      *string `json:"room"`
+		Color     *string `json:"color"`
+		StartTime *string `json:"start_time"`
+		EndTime   *string `json:"end_time"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "json inválido")
+	}
+	fields := map[string]interface{}{}
+	if body.Subject != nil {
+		fields["subject"] = *body.Subject
+	}
+	if body.Days != nil {
+		fields["days"] = db.MarshalDays(body.Days)
+	}
+	if body.Room != nil {
+		fields["room"] = *body.Room
+	}
+	if body.Color != nil {
+		fields["color"] = *body.Color
+	}
+	if body.StartTime != nil {
+		fields["start_time"] = *body.StartTime
+	}
+	if body.EndTime != nil {
+		fields["end_time"] = *body.EndTime
+	}
+	if len(fields) == 0 {
+		return c.JSON(map[string]string{"ok": "nothing"})
+	}
+	s, err := db.UpdateSchedule(int64(id), fields)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(s)
+}
+
+func deleteSchedule(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "id inválido")
+	}
+	if err := db.DeleteSchedule(int64(id)); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
